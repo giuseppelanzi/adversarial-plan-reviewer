@@ -1,0 +1,12 @@
+{
+  "name": "plan-review-marketplace",
+  "owner": { "name": "Giuseppe" },
+  "plugins": [
+    {
+      "name": "plan-review",
+      "source": "./",
+      "description": "Adversarial review of plans by an external reviewer.",
+      "category": "code-review"
+    }
+  ]
+}
