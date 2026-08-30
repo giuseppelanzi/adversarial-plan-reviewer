@@ -13,6 +13,8 @@ Note the trade-off, and mention it if the user seems to expect otherwise: the re
 
 Only when the user names Claude as the reviewer. For an unnamed review, `/plan-review:antigravity` is the default.
 
+The trace rule is the same one the other skill carries: whatever the outcome, the plan document ends up with a `> **Review**: …` line right after its title — section 4 of the response protocol.
+
 The timing is the same as the other reviewer's: *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Plan mode blocks writes, not reads, and the plan document is the one file you may edit — so the *review → revise → propose* loop closes inside plan mode rather than forcing the user to reject a plan just to get it reviewed.
 
 ## 1. Locate the document
