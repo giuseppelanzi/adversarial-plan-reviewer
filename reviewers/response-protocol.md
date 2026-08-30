@@ -1,6 +1,6 @@
 # Response protocol
 
-Shared by every `plan-review-*` skill. Applies once the reviewer's output is back.
+Shared by both reviewer skills of the `plan-review` plugin. Applies once the reviewer's output is back.
 
 ## Language
 
