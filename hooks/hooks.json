@@ -1,4 +1,5 @@
 {
+  "description": "plan-review — persists the plan proposed by ExitPlanMode into .claude/plans/ of the current repo",
   "hooks": {
     "PreToolUse": [
       {
@@ -6,7 +7,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/save-plan.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/save-plan.sh\"",
             "timeout": 5
           }
         ]
