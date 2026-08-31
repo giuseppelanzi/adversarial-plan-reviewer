@@ -100,18 +100,45 @@ Push this repo to GitHub, then in Claude Code:
 /plugin install plan-review@plan-review-marketplace
 ```
 
-To try it before publishing, without a marketplace:
-
-```bash
-claude --plugin-dir /local/path/to/claude-ai-reviewer-plugin
-```
-
-After installation the files live under `~/.claude/plugins/`. Do not edit them by hand: change the repo and reinstall.
-
 You can check the manifests at any time with:
 
 ```bash
 claude plugin validate .
+```
+
+### From disk, and how to reload it
+
+The repo is a marketplace of itself — `marketplace.json` sits next to the manifest — so it installs from its own directory, with no GitHub in the loop:
+
+```bash
+claude plugin marketplace add "/local/path/to/claude-ai-reviewer-plugin"
+claude plugin install plan-review@plan-review-marketplace
+```
+
+Installing does not link that directory, it **copies** it to `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. So editing the repo changes nothing in a running Claude Code, and reloading takes two commands — the first refreshes the catalog from the directory, the second reinstalls the plugin from it:
+
+```bash
+claude plugin marketplace update plan-review-marketplace
+claude plugin update plan-review@plan-review-marketplace
+```
+
+Then restart Claude Code; `plugin update` says so itself.
+
+**`plugin update` compares the `version` in `.claude-plugin/plugin.json`, and nothing else.** Leave it untouched and you get `already at the latest version` however much the code changed — the most convincing way to believe you have reloaded when you have not. Bump the version on each local iteration, or force the copy through:
+
+```bash
+claude plugin uninstall plan-review@plan-review-marketplace
+claude plugin install plan-review@plan-review-marketplace
+```
+
+What it does *not* need is a commit: a directory marketplace copies the working tree as it stands, untracked files included. `installed_plugins.json` does record a `gitCommitSha`, but that only describes where HEAD was at install time — it is not what the update compares.
+
+Every version keeps its own folder in the cache and nothing prunes the old ones, so `ls ~/.claude/plugins/cache/plan-review-marketplace/plan-review/` reads as a history of what you installed.
+
+For a tight edit-and-test loop, skip installation entirely. This reads the directory live — no version bumps, no cache, no reload:
+
+```bash
+claude --plugin-dir "/local/path/to/claude-ai-reviewer-plugin"
 ```
 
 ### Option B — no plugin, user level
@@ -231,7 +258,7 @@ It works on an analysis document just as well as on a plan: *"review docs/auth-a
 - **`${PIPESTATUS[0]}` is bash-only.** Claude Code's Bash tool runs zsh, where that expands to nothing and the exit code silently vanishes (zsh spells it `$pipestatus[1]`, 1-indexed). The skills redirect the reviewer's output to a file and read plain `$?` instead of piping into `jq`.
 - **`claude -p` waits on stdin.** Without `</dev/null` it blocks 3 seconds and warns `no stdin data received in 3s`. Both skills redirect stdin; the prompt is an argument, never piped.
 - **`${CLAUDE_PLUGIN_ROOT}` is substituted into the SKILL.md text, not read from the environment.** Claude Code expands it when it loads the skill, so by the time the instructions arrive the path is already absolute and the literal string never reaches a shell. It is reliable in skills for that reason. The *environment variable* of the same name is a different thing and is empty in the shell the Bash tool runs, so a script that generates a command at runtime cannot use it. Note the substitution applies to the braced form `${CLAUDE_PLUGIN_ROOT}`; `$CLAUDE_PLUGIN_ROOT` written bare is left alone.
-- **Plugin edits**: changes to `SKILL.md` take effect immediately; changes under `hooks/` do not. That needs `/reload-plugins` or a restart. The trace backstop lives under `hooks/`, so it stays dormant until you reload.
+- **Plugin edits reach a running session only under `--plugin-dir`.** There, changes to `SKILL.md` take effect immediately while changes under `hooks/` do not — those need `/reload-plugins` or a restart, and the trace backstop lives under `hooks/`, so it stays dormant until you reload. Installed from a marketplace none of that applies: you are running the copy under `~/.claude/plugins/cache/`, and nothing you edit in the repo is live until you update *and* restart. See *From disk, and how to reload it* above — in particular that the update is keyed on the version string, so an unbumped `plugin.json` reloads nothing while reporting success.
 - **Skills fire everywhere.** At user level or as a plugin they apply in every repo, including ones where `agy` is not installed. If it gets noisy, narrow the `description`s.
 - **The hook rewrites the plan it is given.** When the plan carries no `> **Review**:` line in its first ten lines, `save-plan.sh` returns it through `hookSpecificOutput.updatedInput` with a notice prepended, and archives that version. So a plan in `.claude/plans/` can open with a line Claude never wrote. It sets no `permissionDecision` — the approval dialog is untouched — and it builds `updatedInput` from the original `tool_input` object with `.plan` replaced, so any other field survives. If a future version stops honouring `updatedInput` on `ExitPlanMode`, the `systemMessage` and the archived copy still carry the notice: the degradation is partial.
 - **`.tool_input.plan` is undocumented.** `hooks/save-plan.sh` reads the plan text from it, but the field no longer appears in the `ExitPlanMode` schema (which now exposes only a deprecated `allowedPrompts`). It still arrives. Nothing critical depends on it any more: the skills pass the document inline and can find it without the hook, so if the field ever disappears you lose the saved history and the hook's notice, not the review or the trace the skill writes itself.
