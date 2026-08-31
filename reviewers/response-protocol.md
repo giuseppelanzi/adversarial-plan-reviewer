@@ -18,6 +18,7 @@ Treat the run as failed if any of these hold:
 - empty output — for `agy`, an empty stdout with exit 0 is the *normal* shape of a failure, so never read it as "no critique found"
 - the output or stderr carries an authentication, quota, permission (`auto-denied`), or `command not found` error
 - the process was killed by the timeout
+- **the output is a pointer rather than a critique** — a short paragraph saying the review was written to a file, naming a path. It is not empty, so nothing above catches it. A review has a `VERDICT:` line and labelled points; anything else is a failed run, whatever it says about itself.
 
 When the run failed:
 
@@ -25,6 +26,7 @@ When the run failed:
 2. **Give the concrete remedy** — the one the skill lists for that error. It is normally a command the user runs themselves in another terminal.
 3. **Stop there.** Do not retry the command, do not silently work around the error, and above all **do not run a different reviewer CLI instead**. Picking the fallback is the user's call, not yours: another reviewer costs money and answers a question they did not ask. Offer it in one line, then wait.
 4. **Never invent a critique.** A missing review is reported as missing.
+5. **Stamp the failure on the document**, in the failed form of section 4. A failed review that leaves no trace in the plan is indistinguishable from a review that was never attempted.
 
 ## 1. Report how deep the review went
 
@@ -70,7 +72,39 @@ State the outcome. Do not hand this decision back to the user as an open questio
 
 One escalation, as a judgement you state rather than a threshold you count: if fixing the accepted points turns out to change the plan's *approach* rather than its details — the corrections cascade, each step dragging the next — the plan is rewritten from scratch and re-reviewed, even with no blocking point. Three fixes on a four-step plan is usually this case; three on a twenty-step plan is not.
 
-## 4. Close
+## 4. Stamp the document
+
+The close below lives in the conversation and scrolls away. The plan document does not: it is what the user approves, and what the `ExitPlanMode` hook archives into `.claude/plans/`. So the outcome goes there too.
+
+Write the block immediately after the document's `#` title, before proposing the plan:
+
+```
+> **Review**: Antigravity (`gemini-3.1-pro-high`) — VERDICT: PASS — 12 files read
+> 4 points accepted (1 BLOCKING, 3 SHOULD-FIX), 2 rejected, 1 note
+> Plan rewritten on the accepted points; no second pass needed.
+```
+
+One line per line of section 5's close — the same three facts, not a second summary invented for the occasion.
+
+**When the run failed** — section 0's case — the block is still written, in this form:
+
+```
+> **Review**: Antigravity produced no output — tool auto-denied or execution failed.
+> Plan NOT verified.
+```
+
+Quote the reviewer's own error in that first line, trimmed. Do not substitute a cause of your own: naming the wrong one is how a diagnosis nobody re-checks ends up stamped on every plan.
+
+That is the case where it matters most. A plan that was never verified but looks verified is worse than one that says it was not.
+
+Rules:
+
+- `**Review**:` is a **fixed marker**. Keep those two words in English whatever language the document is in, and keep the block inside the **first ten lines**. The hook greps for exactly that: a block written further down, or with the word translated, reads to it as no declaration at all, and it prepends its own notice on top of yours.
+- **One block only.** A second pass rewrites it and names itself (`second pass`); it does not stack. If the document already opens with a `> **Review**:` block — typically the hook's own notice, on `latest.md` — replace it.
+- **Which document.** The plan document of the current plan mode session, or `.claude/plans/latest.md`. Never a document the user wrote themselves: for `docs/auth-analysis.md` the review is reported in the conversation only. Writing into someone's own file uncalled-for is a surprise.
+- Everything except the marker and the `PASS`/`FAIL`/`BLOCKING`/`SHOULD-FIX` labels follows the language of the document.
+
+## 5. Close
 
 Three lines, in this order:
 

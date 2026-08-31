@@ -17,6 +17,25 @@ Plan mode blocks writes, not reads, so the reviewer runs from inside it — and 
 
 You can still ask for one at any other moment — *"review the plan"*, *"review docs/auth-analysis.md"*. That path is what the hook serves: it writes every proposed plan to `.claude/plans/latest.md` **in the current repo**, on the proposal and *before* you approve it. It costs milliseconds, blocks nothing, and calls no model.
 
+### The trace it leaves in the plan
+
+As far as the plan is concerned, a review you cannot see did not happen. So the review status travels **in the document**, right under the title:
+
+```
+> **Review**: Antigravity (`gemini-3.1-pro-high`) — VERDICT: PASS — 12 files read
+> 4 points accepted (1 BLOCKING, 3 SHOULD-FIX), 2 rejected, 1 note
+> Plan rewritten on the accepted points; no second pass needed.
+```
+
+Three shapes, and one of them is always there: the review **ran** (verdict, files read, counts, what changed in the plan), it **failed** (which reviewer, which error, `Plan NOT verified`), or it was **not run** (with the reason — *"mechanical edit to a single file"*). Unlike the summary in the chat, the block survives into `.claude/plans/` and into the plan you approve.
+
+Two things write it, and it takes both:
+
+- **The skill**, the only one that knows what actually happened. Its rules live in `reviewers/response-protocol.md` (review ran, or failed) and in the `description` of `skills/antigravity` (review skipped — that `description` is the plugin's only text that stays in context even when the skill never loads).
+- **The hook**, as a backstop. On `ExitPlanMode` it greps the first ten lines for `> **Review**:`; if the line is missing it prepends a notice of its own and tells you it did. It never blocks and never approves — it sets no `permissionDecision`, so the approval dialog is exactly the one you know. What it cannot do is say *why* there was no review: it only reports that nothing was declared. Its wording is overridable with `PLAN_REVIEW_NOTICE`.
+
+The second layer exists because the first is a rule addressed to a model, and this repo has already watched one of those get skipped.
+
 ### When it fires on its own
 
 - **You asked** — a review, a second opinion, a named reviewer, or a plan *and* a review in one breath: it always runs, with no judgement about whether the plan deserves it.
@@ -30,7 +49,7 @@ Two reviewers are available. Antigravity is the default; Claude only fires if yo
 
 | Skill | Command | Read-only | Output |
 |---|---|---|---|
-| `/plan-review:antigravity` | `agy --mode plan` | plan mode; needs a one-time permission grant per repo | stdout |
+| `/plan-review:antigravity` | `agy --mode plan --sandbox` | plan mode + sandbox, with `--add-dir` as the workspace | stdout |
 | `/plan-review:claude` | `claude -p --permission-mode plan` | flag + tool allowlist | `.result` |
 
 Antigravity is the default because it is a *different vendor's* model: it does not share your blind spots. Headless Claude verifies a plan against the code well, but it shares your model family, your `CLAUDE.md` and your conventions, which makes it the weaker adversary. Use it when you want repo-grounded verification rather than genuine disagreement.
@@ -56,7 +75,7 @@ claude-ai-reviewer-plugin/
 │   └── response-protocol.md  how to answer the critique — shared
 ├── hooks/
 │   ├── hooks.json            registers the hook on ExitPlanMode
-│   └── save-plan.sh          saves the plan and exits 0
+│   └── save-plan.sh          saves the plan, flags one that declares no review
 ├── .gitignore
 └── README.md
 ```
@@ -81,18 +100,45 @@ Push this repo to GitHub, then in Claude Code:
 /plugin install plan-review@plan-review-marketplace
 ```
 
-To try it before publishing, without a marketplace:
-
-```bash
-claude --plugin-dir /local/path/to/claude-ai-reviewer-plugin
-```
-
-After installation the files live under `~/.claude/plugins/`. Do not edit them by hand: change the repo and reinstall.
-
 You can check the manifests at any time with:
 
 ```bash
 claude plugin validate .
+```
+
+### From disk, and how to reload it
+
+The repo is a marketplace of itself — `marketplace.json` sits next to the manifest — so it installs from its own directory, with no GitHub in the loop:
+
+```bash
+claude plugin marketplace add "/local/path/to/claude-ai-reviewer-plugin"
+claude plugin install plan-review@plan-review-marketplace
+```
+
+Installing does not link that directory, it **copies** it to `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/`. So editing the repo changes nothing in a running Claude Code, and reloading takes two commands — the first refreshes the catalog from the directory, the second reinstalls the plugin from it:
+
+```bash
+claude plugin marketplace update plan-review-marketplace
+claude plugin update plan-review@plan-review-marketplace
+```
+
+Then restart Claude Code; `plugin update` says so itself.
+
+**`plugin update` compares the `version` in `.claude-plugin/plugin.json`, and nothing else.** Leave it untouched and you get `already at the latest version` however much the code changed — the most convincing way to believe you have reloaded when you have not. Bump the version on each local iteration, or force the copy through:
+
+```bash
+claude plugin uninstall plan-review@plan-review-marketplace
+claude plugin install plan-review@plan-review-marketplace
+```
+
+What it does *not* need is a commit: a directory marketplace copies the working tree as it stands, untracked files included. `installed_plugins.json` does record a `gitCommitSha`, but that only describes where HEAD was at install time — it is not what the update compares.
+
+Every version keeps its own folder in the cache and nothing prunes the old ones, so `ls ~/.claude/plugins/cache/plan-review-marketplace/plan-review/` reads as a history of what you installed.
+
+For a tight edit-and-test loop, skip installation entirely. This reads the directory live — no version bumps, no cache, no reload:
+
+```bash
+claude --plugin-dir "/local/path/to/claude-ai-reviewer-plugin"
 ```
 
 ### Option B — no plugin, user level
@@ -147,7 +193,7 @@ This is the only thing the system writes into your projects. Add `.claude/plans/
 
 - `jq` — used by the hook and by the Claude skill.
 - At least one of `agy` or `claude`. You simply do not use the skill for the other.
-- For `agy`: credentials cached from an earlier interactive login (`agy`, once, in a terminal), **and** its permissions granted once per repository — plural, at least `read_file` and `command`. Without them every headless run in that repo returns nothing. See the traps below.
+- For `agy`: credentials cached from an earlier interactive login (`agy`, once, in a terminal). Nothing else — no per-repository permission grant. An earlier version of this README said otherwise; see the traps below.
 - Optional: `timeout` (GNU coreutils, `brew install coreutils` on macOS, where it lands as `gtimeout`). The Claude skill detects either name and runs without a timeout if neither is there; the agy skill uses `--print-timeout` instead.
 
 ---
@@ -176,20 +222,33 @@ It works on an analysis document just as well as on a plan: *"review docs/auth-a
 - **Severity levels and the pass bar**: `reviewers/plan-critic.md`. `FAIL` fires if and only if at least one point is `[BLOCKING]`, and blocking requires naming what concretely goes wrong. Loosen that definition and everything starts failing; tighten it and nothing does.
 - **Default reviewer**: it lives in the `description` of `skills/antigravity` ("use it as the default when the user asks for a review without naming a reviewer"). To change it, move that sentence into the other skill.
 - **Reviewer model**: pinned in `skills/antigravity/SKILL.md` to `gemini-3.1-pro-high`, because agy's own default is a Flash tier. Override per run with `PLAN_REVIEW_MODEL=<model>`, or change the pin. This is the single biggest lever on review quality.
+- **The agy flag set**: `--mode plan --sandbox --dangerously-skip-permissions --effort high --add-dir`, in `skills/antigravity/SKILL.md`. They work as one unit — the traps below say why pulling one out breaks the others. `--effort high` is the second quality lever after the model pin; the two sandboxing flags are what make the third acceptable.
 - **When it fires unprompted**: the trivial/non-trivial line lives in the `description` of `skills/antigravity`. Widen or narrow it there.
+- **The hook's notice**: the text it prepends when a plan declares no review. Fixed English string in `hooks/save-plan.sh`, overridable per environment with `PLAN_REVIEW_NOTICE`. The skill's own trace follows the language of the plan; the hook cannot know it.
 - **Language**: the instructions are in English, the output follows the language of the conversation or of the plan. The rule is written in two places — the critic prompt and the response protocol.
 
 ---
 
 ## Known traps
 
-- **Headless `agy` denies every tool it has not been granted, silently.** In a repo where you have never granted agy anything, the first review returns **zero bytes on stdout while exiting 0** — stderr carries the reason: `a tool required the "read_file" permission that headless mode cannot prompt for, so it was auto-denied`. Headless cannot show you the approval dialog, so it denies. Judge the run by its output, never by its exit code: 0 is also what success returns.
+- **Headless `agy` has no workspace, and that is what used to break the review.** `cd` is invisible to it: asked to list its workspace without `--add-dir`, it answers `NO WORKSPACE`. With no file tree the model explores through the shell instead, headless cannot show an approval dialog, and the shell call is auto-denied — **zero bytes on stdout while exiting 0**, with `a tool required the "command" permission … so it was auto-denied` on stderr. Judge the run by its output, never by its exit code: 0 is also what success returns.
 
-  The fix is a one-time grant **per repository**, made by you, interactively: `cd <repo> && agy`, ask it something that touches the repo ("list the files and summarise the structure"), and approve every permission it asks for with the **persistent** option rather than the single-use one. Then quit. Once per repo, not once per review.
+  **This README used to diagnose that error as missing permissions** and sent you off to grant them interactively, once per repository. That was wrong, and worth saying plainly because the wrong remedy is the memorable one: the CLI resolves the same `default-cli-project` whatever folder you launch from, and the logs show zero grants *in the runs that succeed too*. The fix is `--add-dir "$PROJECT"` on the command line, plus the flags below.
 
-  **It will ask for more than one** — at least `read_file` and `command` — and a partial grant fails exactly like no grant at all: empty stdout, exit 0, same error naming a different tool. That suggested prompt is worth using verbatim because it exercises both. If a later run fails on a tool you have not seen before, the earlier grant worked and agy got further: keep granting, it is progress rather than a new fault.
+  **The tool named in the error is not the permission you are missing.** It is whichever call tripped first, and it changes between identical runs — `command`, then `read_file`, then `command` again. Chasing that name is what produced the wrong diagnosis in the first place.
 
-  The skill detects this and hands you those instructions. It does not read, write or repair agy's configuration, and does not go looking for where it lives: a permission that the consumer grants itself is not a permission. agy will suggest `--dangerously-skip-permissions` in its error — don't, it auto-approves writes too.
+  Check the workspace claim yourself, from inside any repo — it takes one call and no permissions:
+
+  ```bash
+  agy --mode plan -p "List the files at the top level of your current workspace.
+  Use ONLY your file-listing tool. If you have no workspace, say: NO WORKSPACE." </dev/null
+  ```
+
+- **The skill now auto-approves agy's tools, on purpose.** `--dangerously-skip-permissions` is in the command, which reverses this README's earlier position, and it only holds because of what surrounds it: `--mode plan` is agy's read-only execution mode and `--sandbox` adds terminal restrictions. Measured on a throwaway copy of this repo, a full review under those flags left all 18 files byte-identical. It does **not** protect the rest of the filesystem — agy writes inside its own working directory regardless. If that trade is not one you want, drop the flag and declare the shell unavailable in the prompt instead: that also produces a review, from file-reading tools alone, but then `--effort high` has to go too — with the shell denied, high effort makes the model reach for it anyway and the run dies at zero bytes.
+
+- **A long critique comes back as a pointer, not as the review.** Left alone, agy treats an extensive report as an artefact: it writes the review to a file under its own working directory and returns one line on stdout naming the path. That output is *not empty*, so it sails past every "did the run fail" check. The prompt carries an **Output Delivery Constraint** to prevent it — three lines forbidding `write_to_file` and demanding the critique verbatim in the response. If you ever see a plan review summarised as "the review is in review.md", that constraint went missing.
+
+- **`--log-file` is the only real diagnostic.** A muted run gives you one line of stderr and nothing else. `agy … --log-file /tmp/agy.log`, then `grep -iE 'permission|grant|project' /tmp/agy.log`, tells you whether the workspace was lost or a tool stopped the run. It is what turned this whole trap from a guess into a cause.
 - **`timeout` does not exist on macOS.** GNU `timeout` is not shipped with macOS; `brew install coreutils` provides it as `gtimeout`. The Claude skill picks whichever exists and runs unwrapped if neither does, so a stock Mac degrades instead of dying on `command not found`. The Antigravity skill uses agy's native `--print-timeout` and needs no wrapper.
 - **`$CLAUDE_PROJECT_DIR` is a hook variable, not a shell one.** It is set for hook commands, but it is empty in the shell the skill runs its bash in. `cd "$CLAUDE_PROJECT_DIR"` then silently stays put, and `$CLAUDE_PROJECT_DIR/.claude/plans/latest.md` resolves to `/.claude/plans/latest.md`. The skills use `${CLAUDE_PROJECT_DIR:-$PWD}`.
 - **`agy -p` swallows the next argument as its prompt.** Every other flag goes *before* `-p`. `agy -p --mode plan "..."` takes `--mode` as the prompt and drops the real one.
@@ -199,9 +258,10 @@ It works on an analysis document just as well as on a plan: *"review docs/auth-a
 - **`${PIPESTATUS[0]}` is bash-only.** Claude Code's Bash tool runs zsh, where that expands to nothing and the exit code silently vanishes (zsh spells it `$pipestatus[1]`, 1-indexed). The skills redirect the reviewer's output to a file and read plain `$?` instead of piping into `jq`.
 - **`claude -p` waits on stdin.** Without `</dev/null` it blocks 3 seconds and warns `no stdin data received in 3s`. Both skills redirect stdin; the prompt is an argument, never piped.
 - **`${CLAUDE_PLUGIN_ROOT}` is substituted into the SKILL.md text, not read from the environment.** Claude Code expands it when it loads the skill, so by the time the instructions arrive the path is already absolute and the literal string never reaches a shell. It is reliable in skills for that reason. The *environment variable* of the same name is a different thing and is empty in the shell the Bash tool runs, so a script that generates a command at runtime cannot use it. Note the substitution applies to the braced form `${CLAUDE_PLUGIN_ROOT}`; `$CLAUDE_PLUGIN_ROOT` written bare is left alone.
-- **Plugin edits**: changes to `SKILL.md` take effect immediately; changes under `hooks/` do not. That needs `/reload-plugins` or a restart.
+- **Plugin edits reach a running session only under `--plugin-dir`.** There, changes to `SKILL.md` take effect immediately while changes under `hooks/` do not — those need `/reload-plugins` or a restart, and the trace backstop lives under `hooks/`, so it stays dormant until you reload. Installed from a marketplace none of that applies: you are running the copy under `~/.claude/plugins/cache/`, and nothing you edit in the repo is live until you update *and* restart. See *From disk, and how to reload it* above — in particular that the update is keyed on the version string, so an unbumped `plugin.json` reloads nothing while reporting success.
 - **Skills fire everywhere.** At user level or as a plugin they apply in every repo, including ones where `agy` is not installed. If it gets noisy, narrow the `description`s.
-- **`.tool_input.plan` is undocumented.** `hooks/save-plan.sh` reads the plan text from it, but the field no longer appears in the `ExitPlanMode` schema (which now exposes only a deprecated `allowedPrompts`). It still arrives. Nothing critical depends on it any more: the skills pass the document inline and can find it without the hook, so if the field ever disappears you lose the saved history, not the review.
+- **The hook rewrites the plan it is given.** When the plan carries no `> **Review**:` line in its first ten lines, `save-plan.sh` returns it through `hookSpecificOutput.updatedInput` with a notice prepended, and archives that version. So a plan in `.claude/plans/` can open with a line Claude never wrote. It sets no `permissionDecision` — the approval dialog is untouched — and it builds `updatedInput` from the original `tool_input` object with `.plan` replaced, so any other field survives. If a future version stops honouring `updatedInput` on `ExitPlanMode`, the `systemMessage` and the archived copy still carry the notice: the degradation is partial.
+- **`.tool_input.plan` is undocumented.** `hooks/save-plan.sh` reads the plan text from it, but the field no longer appears in the `ExitPlanMode` schema (which now exposes only a deprecated `allowedPrompts`). It still arrives. Nothing critical depends on it any more: the skills pass the document inline and can find it without the hook, so if the field ever disappears you lose the saved history and the hook's notice, not the review or the trace the skill writes itself.
 - **`cp`, not `ln -s`, for `latest.md`.** Tempting to symlink; don't. Creating a symlink on Windows/NTFS needs elevated privileges or Developer Mode, and the hook would die with `Operation not permitted`. The copy costs a duplicate file and works everywhere.
 - **The hook does not touch your `.gitignore`.** It creates `.claude/plans/` in the target repo and stops there. Writing into another project's git configuration from inside a hook is a surprise nobody asked for, so ignoring that directory stays your call.
 
