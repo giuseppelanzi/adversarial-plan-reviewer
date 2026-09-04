@@ -32,9 +32,11 @@ When the run failed:
 
 The reviewer decides on its own how much to read, and a shallow review looks exactly like a thorough one unless the reader is told what it opened.
 
-Count the entries in the closing "Files read" section and carry that number into your summary. Report it as a **fact, not a verdict**.
+Count the entries in the closing section — `Files read` under `plan-critic.md`, `Sources read` under `doc-critic.md`, possibly translated into the document's language — and carry that number into your summary. Report it as a **fact, not a verdict**.
 
 Resist the temptation to judge it. A short list is often the right answer: a first plan in a new repo, a greenfield project, a plan that genuinely touches two files. You do not know the repo better than the user does — give them the count and let them decide whether it is enough. If the section is missing entirely, say that instead of the number.
+
+Under `doc-critic.md` an **explicitly empty** list — *"the document is not about this repository"* — is a correct outcome and reports as such. It is not a shallow review, and it is not a broken run.
 
 The one case that *is* a failure is section 0's: no output at all. That is a broken run, not a shallow one, and it never gets reported as a review.
 
@@ -72,6 +74,8 @@ State the outcome. Do not hand this decision back to the user as an open questio
 
 One escalation, as a judgement you state rather than a threshold you count: if fixing the accepted points turns out to change the plan's *approach* rather than its details — the corrections cascade, each step dragging the next — the plan is rewritten from scratch and re-reviewed, even with no blocking point. Three fixes on a four-step plan is usually this case; three on a twenty-step plan is not.
 
+**When the document under review is not a plan** — a specification, a proposal, an analysis, a note — none of the above applies as written: there is nothing of yours to rewrite and no second pass to schedule. Say which points you accept and, for each, what you would change in the document, concretely enough to act on. Then stop: editing it is the user's call, not yours. Everything else in this protocol still holds — the binary verdict, the ban on paraphrasing a point into something milder, and the rule that "everything rejected" is said out loud rather than dissolved into a summary.
+
 ## 4. Stamp the document
 
 The close below lives in the conversation and scrolls away. The plan document does not: it is what the user approves, and what the `ExitPlanMode` hook archives into `.claude/plans/`. So the outcome goes there too.
@@ -102,15 +106,19 @@ Rules:
 - `**Review**:` is a **fixed marker**. Keep those two words in English whatever language the document is in, and keep the block inside the **first ten lines**. The hook greps for exactly that: a block written further down, or with the word translated, reads to it as no declaration at all, and it prepends its own notice on top of yours.
 - **One block only.** A second pass rewrites it and names itself (`second pass`); it does not stack. If the document already opens with a `> **Review**:` block — typically the hook's own notice, on `latest.md` — replace it.
 - **Which document.** The plan document of the current plan mode session, or `.claude/plans/latest.md`. Never a document the user wrote themselves: for `docs/auth-analysis.md` the review is reported in the conversation only. Writing into someone's own file uncalled-for is a surprise.
+
+  **This rule keys on the document, never on the critic.** `docs/auth-analysis.md` is an analysis of this codebase, so it runs under `plan-critic.md` — and it still gets no stamp, because it is the user's file. Read the condition the other way round, as *"plan-critic ran, therefore stamp"*, and you end up writing into documents nobody asked you to touch. Only a plan is stamped, whichever critic reviewed it.
 - Everything except the marker and the `PASS`/`FAIL`/`BLOCKING`/`SHOULD-FIX` labels follows the language of the document.
 
 ## 5. Close
 
 Three lines, in this order:
 
-1. The reviewer's verdict, which reviewer produced it, and how many files it read.
+1. The reviewer's verdict, which reviewer produced it, **which critic it ran under**, and how many files or sources it read.
 2. How many points accepted and how many rejected, broken down by label.
-3. What section 3 decided about the plan.
+3. What section 3 decided about the plan — or, for a document that is not a plan, what you would change in it.
+
+Naming the critic is not bookkeeping: a `plan-critic.md` run and a `doc-critic.md` run answer different questions, and a review reported without saying which one it was reads as more code-grounded than it is.
 
 Then ask whether to proceed.
 

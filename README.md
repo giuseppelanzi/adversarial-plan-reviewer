@@ -65,13 +65,14 @@ If a reviewer's CLI fails — not logged in, tools auto-denied, missing binary �
 ```
 claude-ai-reviewer-plugin/
 ├── .claude-plugin/
-│   ├── plugin.json          manifest — this is the only file that belongs in here
+│   ├── plugin.json          plugin manifest — manifests only in here, never content
 │   └── marketplace.json     catalog, so the repo can be installed from itself
 ├── skills/
 │   ├── antigravity/SKILL.md
 │   └── claude/SKILL.md
 ├── reviewers/
-│   ├── plan-critic.md        critic system prompt — shared by both skills
+│   ├── plan-critic.md        critic prompt for a plan, or a document about this code
+│   ├── doc-critic.md         critic prompt for a document that is not about this code
 │   └── response-protocol.md  how to answer the critique — shared
 ├── hooks/
 │   ├── hooks.json            registers the hook on ExitPlanMode
@@ -82,10 +83,12 @@ claude-ai-reviewer-plugin/
 
 What is Claude Code convention and what is not:
 
-- **Standard**: `.claude-plugin/plugin.json`, `skills/`, `hooks/hooks.json`. These are discovered on their own.
+- **Standard**: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `skills/`, `hooks/hooks.json`. These are discovered on their own.
 - **Non-standard**: `reviewers/`. It is my own folder, read only because the SKILL.md files reference its path. Inside a plugin this is legitimate: the files travel with the bundle and resolve through `${CLAUDE_PLUGIN_ROOT}`.
 
-The most common mistake is putting `skills/` or `hooks/` **inside** `.claude-plugin/`. Only the manifest goes there.
+The most common mistake is putting `skills/` or `hooks/` **inside** `.claude-plugin/`. That directory holds **manifests, and only manifests** — the content lives beside it, at the repo root.
+
+Two manifests is normal here, not a mistake: `marketplace.json` is *required* to sit at `.claude-plugin/marketplace.json` in a marketplace repo, and this repo is a marketplace of itself, so both files share the directory legitimately. What never joins them is a skill, a hook, or a command.
 
 ---
 
@@ -209,7 +212,17 @@ This is the only thing the system writes into your projects. Add `.claude/plans/
 
 Or, naming the reviewer: *"ask Antigravity about this plan"*, *"have Claude review the plan"*.
 
-It works on an analysis document just as well as on a plan: *"review docs/auth-analysis.md"*.
+It works on a document just as well as on a plan — *"review docs/auth-analysis.md"*, *"dai un'occhiata a questa specifica"* — and the critic follows the document:
+
+| The document | Critic | Evidence it must bring | Stamped? |
+|---|---|---|---|
+| a plan, in plan mode or `latest.md` | `plan-critic.md` | `file:line` on every point | yes, in the plan |
+| an analysis / ADR / post-mortem **about this code** | `plan-critic.md` | `file:line` on every point | no — it's your file |
+| a specification, a proposal, a note **not about this code** | `doc-critic.md` | a verbatim quote of the document | no |
+
+The second row is the one worth reading twice: the stamp depends on **whose document it is**, not on which critic ran. Only a plan gets the `> **Review**:` block; on your own files the review is reported in the chat and nothing is written.
+
+Naming the critic overrides the choice. Whichever ran, the closing summary says which — a doc review and a code-grounded one answer different questions, and only one of them was checked against the repo.
 
 **Timing**: the review runs *inside* plan mode, on the plan document, before the plan is proposed. Plan mode blocks writes, not reads, so bash works there — and the plan document is the one file Claude may edit, so it can revise it in place. Asking after you have left plan mode also works; it reads `.claude/plans/latest.md` instead.
 
@@ -217,15 +230,16 @@ It works on an analysis document just as well as on a plan: *"review docs/auth-a
 
 ## Customization
 
-- **Critic prompt**: `reviewers/plan-critic.md`. This is the file you will tweak most often. Deliberately a single file for both reviewers: if it diverges, the critiques stop being comparable.
+- **Critic prompts**: `reviewers/plan-critic.md` and `reviewers/doc-critic.md`. These are the files you will tweak most often. **One critic per kind of document, shared by both reviewers** — never one per reviewer: the comparability that matters is between `agy` and `claude` on the same document, and splitting along that axis is what would destroy it. The two critics differ on what counts as evidence, not on rigour: plan-critic demands a `file:line` per point, doc-critic a verbatim quote of the document.
 - **Response protocol**: `reviewers/response-protocol.md`. Home of the binary `ACCEPTED`/`REJECTED` rule and of what each severity does to the plan.
-- **Severity levels and the pass bar**: `reviewers/plan-critic.md`. `FAIL` fires if and only if at least one point is `[BLOCKING]`, and blocking requires naming what concretely goes wrong. Loosen that definition and everything starts failing; tighten it and nothing does.
+- **Severity levels and the pass bar**: both critic prompts, which keep them identical on purpose. `FAIL` fires if and only if at least one point is `[BLOCKING]`, and blocking requires naming what concretely goes wrong. Loosen that definition and everything starts failing; tighten it and nothing does. What `[BLOCKING]` *means* is the one thing that differs: implementing the plan produces work to redo, versus acting on the document produces a wrong decision.
+- **Which critic runs on what**: the selection rule in each `SKILL.md`, section 2 (Antigravity) / section 1 (Claude). A plan is never classified — it always gets `plan-critic.md`.
 - **Default reviewer**: it lives in the `description` of `skills/antigravity` ("use it as the default when the user asks for a review without naming a reviewer"). To change it, move that sentence into the other skill.
 - **Reviewer model**: pinned in `skills/antigravity/SKILL.md` to `gemini-3.1-pro-high`, because agy's own default is a Flash tier. Override per run with `PLAN_REVIEW_MODEL=<model>`, or change the pin. This is the single biggest lever on review quality.
 - **The agy flag set**: `--mode plan --sandbox --dangerously-skip-permissions --effort high --add-dir`, in `skills/antigravity/SKILL.md`. They work as one unit — the traps below say why pulling one out breaks the others. `--effort high` is the second quality lever after the model pin; the two sandboxing flags are what make the third acceptable.
 - **When it fires unprompted**: the trivial/non-trivial line lives in the `description` of `skills/antigravity`. Widen or narrow it there.
 - **The hook's notice**: the text it prepends when a plan declares no review. Fixed English string in `hooks/save-plan.sh`, overridable per environment with `PLAN_REVIEW_NOTICE`. The skill's own trace follows the language of the plan; the hook cannot know it.
-- **Language**: the instructions are in English, the output follows the language of the conversation or of the plan. The rule is written in two places — the critic prompt and the response protocol.
+- **Language**: the instructions are in English, the output follows the language of the conversation or of the document. The rule is written in three places — both critic prompts and the response protocol. It applies to the critics' section headings too: on an Italian document `## Sources read` comes back as `## Fonti lette`, which is why the response protocol matches that section by role rather than by its exact English name.
 
 ---
 
@@ -247,6 +261,8 @@ It works on an analysis document just as well as on a plan: *"review docs/auth-a
 - **The skill now auto-approves agy's tools, on purpose.** `--dangerously-skip-permissions` is in the command, which reverses this README's earlier position, and it only holds because of what surrounds it: `--mode plan` is agy's read-only execution mode and `--sandbox` adds terminal restrictions. Measured on a throwaway copy of this repo, a full review under those flags left all 18 files byte-identical. It does **not** protect the rest of the filesystem — agy writes inside its own working directory regardless. If that trade is not one you want, drop the flag and declare the shell unavailable in the prompt instead: that also produces a review, from file-reading tools alone, but then `--effort high` has to go too — with the shell denied, high effort makes the model reach for it anyway and the run dies at zero bytes.
 
 - **A long critique comes back as a pointer, not as the review.** Left alone, agy treats an extensive report as an artefact: it writes the review to a file under its own working directory and returns one line on stdout naming the path. That output is *not empty*, so it sails past every "did the run fail" check. The prompt carries an **Output Delivery Constraint** to prevent it — three lines forbidding `write_to_file` and demanding the critique verbatim in the response. If you ever see a plan review summarised as "the review is in review.md", that constraint went missing.
+
+- **The critic and its framing line are one unit, and the framing line is easy to forget.** Both `SKILL.md` bash blocks carry a `FRAMING` string right above the document, and under `plan-critic.md` it orders the reviewer to *"verify every claim it makes by reading this repository yourself"*. Swap `CRITIC` to `doc-critic.md` and leave that line behind, and you have told a reviewer to find code behind a text that has none — it obeys by inventing `file:line` references, and the result is a review that looks grounded and is not. The two variables sit next to each other for this reason. The reverse mistake, doc framing with `plan-critic.md`, is quieter: the review simply stops verifying.
 
 - **`--log-file` is the only real diagnostic.** A muted run gives you one line of stderr and nothing else. `agy … --log-file /tmp/agy.log`, then `grep -iE 'permission|grant|project' /tmp/agy.log`, tells you whether the workspace was lost or a tool stopped the run. It is what turned this whole trap from a guess into a cause.
 - **`timeout` does not exist on macOS.** GNU `timeout` is not shipped with macOS; `brew install coreutils` provides it as `gtimeout`. The Claude skill picks whichever exists and runs unwrapped if neither does, so a stock Mac degrades instead of dying on `command not found`. The Antigravity skill uses agy's native `--print-timeout` and needs no wrapper.
