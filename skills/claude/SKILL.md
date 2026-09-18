@@ -49,12 +49,37 @@ The document goes **inline in the prompt**, not as a path: the plan document usu
 
 This does not contradict "do not prepare context". That rule is about context **on the repository** — summaries, extracted code, a curated file list. The document is not context: it is the **object under review**. What the reviewer is told to do with the repository is the `FRAMING` line, and it follows the critic.
 
+### The ceiling
+
+A timeout is a **ceiling, not a budget**: a review that needs four minutes finishes in four minutes whatever the ceiling is. Raising it costs nothing on a healthy run — it costs wall clock only on a run that hangs, inside plan mode. So it answers **how long do you wait before concluding something is broken**, and you err high: too low costs the whole run plus the next one, where 5 then 15 makes 20 minutes against 15 for starting there.
+
+Here the tier is **two numbers, and they are one unit.** `--max-turns` bounds the agent loop independently of the clock, so raising the timeout alone buys no depth — the run still ends at turn 20, with a *partial* critique that presents itself as a whole one. Move both or neither.
+
+| Tier | `timeout` | `--max-turns` |
+|---|---|---|
+| **short** | `300` | `20` |
+| **standard** | `900` | `40` |
+| **deep** | `1800` | `60` |
+
+Pick one as **a judgement you state, not a threshold you count**:
+
+- **short** — a short, contained document: a plan over a handful of files in one component, a note of two pages. The **floor, not the default**.
+- **standard** — the ordinary case: a plan with architectural consequences, several modules touched, a document past ~10 KB, a repo of some hundreds of files. **In doubt, take the higher tier.**
+- **deep** — a review in depth was asked for; or a previous run hit a ceiling; or the plan rewrites something structural across a large repo.
+
+The signals are free and in hand: the size of the document, how many distinct files and modules the plan names, `git ls-files | wc -l` for the repo. The floor is deliberately not the default — the unprompted review fires only on non-trivial plans, so its runs start above it. Say which tier you ran under when it is not the floor: section 5 of the response protocol.
+
+### The command
+
 ```bash
 cd "${CLAUDE_PROJECT_DIR:-$PWD}" || exit 1
 PLAN="<PLAN_PATH>"
 TO=$(command -v timeout || command -v gtimeout || true)
 OUT="${TMPDIR:-/tmp}/plan-review-claude.json"
 ERR="${TMPDIR:-/tmp}/plan-review-claude.err"
+# The tier chosen above goes here, both of its numbers. Raising one alone is the trap below.
+REVIEW_TIMEOUT="${PLAN_REVIEW_TIMEOUT:-900}"
+REVIEW_TURNS="${PLAN_REVIEW_MAX_TURNS:-40}"
 
 # Section 1 chose these two together. They are one unit: see the constraint below.
 CRITIC="${CLAUDE_PLUGIN_ROOT}/reviewers/plan-critic.md"
@@ -68,11 +93,11 @@ $FRAMING
 $(cat "$PLAN")
 --- END DOCUMENT UNDER REVIEW ---"
 
-${TO:+$TO 300} claude -p \
+${TO:+$TO $REVIEW_TIMEOUT} claude -p \
   --permission-mode plan \
   --allowedTools "Read,Grep,Glob" \
   --disallowedTools "Write,Edit,Bash" \
-  --max-turns 20 \
+  --max-turns "$REVIEW_TURNS" \
   --output-format json \
   "$PROMPT" \
   <"/dev/null" >"$OUT" 2>"$ERR"
@@ -98,10 +123,10 @@ Constraints:
 - `--permission-mode plan` plus the explicit tool allowlist keeps the run read-only. Never `--dangerously-skip-permissions`.
 - The response lives in `.result`. `.is_error` flags a failed run even when the exit code is 0.
 - **Redirect to a file, do not pipe into `jq`.** Reading the exit status through a pipe is not portable: `${PIPESTATUS[0]}` is bash-only and expands to nothing under zsh, which is what Claude Code's Bash tool actually runs. Redirecting first keeps `$?` meaningful in either shell.
-- `TO` is the portable timeout: GNU `timeout` is absent on a stock macOS, `gtimeout` comes from `brew install coreutils`. If neither exists the command runs unwrapped rather than failing with `command not found`.
+- `TO` is the portable timeout: GNU `timeout` is absent on a stock macOS, `gtimeout` comes from `brew install coreutils`. If neither exists the command runs unwrapped rather than failing with `command not found` — and then **`--max-turns` is the only ceiling left**, with nothing bounding the clock. At the short tier that was a footnote; at the deep tier it means the half-hour ceiling does not exist on that machine.
 - `</dev/null` is not decoration: without it `claude -p` blocks for 3s waiting on stdin and warns `no stdin data received in 3s`. The prompt goes in as an argument, never on stdin.
 - **Inlining is safe on size.** A 17 KB document against a 1 MB `ARG_MAX` is under 2%. It would have to reach hundreds of KB to matter.
-- `--max-turns` caps the agent loop and the cost. It works but is not listed in `claude --help`; if a future version rejects it, drop the flag rather than the review. Raise it only for large plans.
+- **`--max-turns` moves with the timeout, never alone.** It caps the agent loop independently of the clock, so the two numbers *are* the tier and the tier is one unit — the table above. `PLAN_REVIEW_MAX_TURNS` overrides it as `PLAN_REVIEW_TIMEOUT` overrides the clock, and overriding one means deciding about the other. The flag works but is not listed in `claude --help`; if a future version rejects it, drop the flag rather than the review.
 - Add `--model` if the user wants a specific one. Default is fine otherwise.
 - No `@file` syntax here: the document is in the prompt, and the repo is what the reviewer reads on its own.
 
@@ -113,7 +138,9 @@ Follow section 0 of the response protocol: report the error, give the remedy, **
 
 **Unknown flag** — stderr contains `unknown option`. Name the flag, drop it, and re-run once. This is the one retry allowed here, because the fix is certain.
 
-**Turn limit** — the result mentions the max turns being reached. The critique is partial: say so before reporting it, and offer a re-run with a higher `--max-turns`.
+**Turn limit** — the result mentions the max turns being reached. The critique is partial: say so before reporting it. It means the tier was too low, so offer the next one with **both** of its numbers — raising the turns under the same clock only changes which ceiling stops the run.
+
+**Hit the clock** — the wrapper kills the process outright, so unlike agy nothing announces it. The signature: `RC` is **`124`** (`timeout` expired) or `143` (`SIGTERM`), the JSON is cut off mid-envelope, `jq` fails on it, and what reaches the screen is the fallback branch of the command block — `!! output is not JSON, raw:` followed by a truncated envelope. Without that signature a timeout is indistinguishable from any other crash that produces invalid JSON. Report it as a misjudged tier, offer the next one, and do not re-run on your own. The complementary case: with `TO` empty there is no wrapper, so there is no `124` to recognise and the only ceiling that can fire is the one on turns.
 
 **Missing CLI or empty `.result` with exit 0** — treat as a failed run, not as "no critique found".
 
