@@ -1,6 +1,6 @@
 ---
 name: antigravity
-description: Submits a plan or an analysis document to Antigravity CLI (agy) as an adversarial reviewer with read-only access to the repo, then forces a point-by-point response to the critique. Use it during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Always use it when the user asks for a review, a second opinion, a critique, to "ask Antigravity" or "ask agy", to "have the plan checked", to verify or validate a plan before implementing it, to check an analysis document before making a decision, or when the user asks for a plan and a review in the same breath — and use it as the default when the user asks for a review without naming a reviewer. Unprompted, use it on any non-trivial plan, and treat any plan with architectural consequences as non-trivial. Skip it on trivial ones — a rename, a one-line fix, a mechanical edit to a single file. Whichever way you decide, declare it in the plan document itself: a `> **Review**: …` line right after the title, saying that the review ran, or that it did not and why. Requests may come in any language.
+description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to Antigravity CLI (agy) as an adversarial reviewer with read-only access to the repo, then forces a point-by-point response to the critique. On a plan, use it during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Always use it when the user asks for a review, a second opinion, a critique, to "ask Antigravity" or "ask agy", to "have the plan checked", to verify or validate a plan before implementing it, to review or check a document — a specification, a proposal, an analysis, a note — before acting or deciding on it, or when the user asks for a plan and a review in the same breath — and use it as the default when the user asks for a review without naming a reviewer. Unprompted, use it on any non-trivial plan, and treat any plan with architectural consequences as non-trivial. Skip it on trivial ones — a rename, a one-line fix, a mechanical edit to a single file. Whichever way you decide on a plan, declare it in the plan document itself: a `> **Review**: …` line right after the title, saying that the review ran, or that it did not and why. Requests may come in any language.
 ---
 
 # Plan review — Antigravity CLI (agy)
@@ -35,9 +35,11 @@ Keep `**Review**:` in English, and keep the line inside the **first ten lines** 
 
 Run `agy --version` first. If the command is missing, say so and offer `/plan-review:claude` instead — but do not run it yourself.
 
-## 2. Locate the document
+## 2. Locate the document, then pick the critic
 
-Find the document in this order:
+### The document
+
+Find it in this order:
 
 1. the path the user gave, if any;
 2. **the plan document of the current plan mode session** — the path named in your plan mode instructions, typically under `~/.claude/plans/`. This is the authoritative version while you are planning;
@@ -47,13 +49,25 @@ Find the document in this order:
 
 If none exists, stop and ask. Do not reconstruct the plan from memory of the conversation: you would be critiquing a different version from the one that gets implemented.
 
-For an analysis document, same mechanism with that document's path.
+For any other document — an analysis, a specification, a proposal, a note — same mechanism with that document's path.
+
+### The critic
+
+Two critic prompts live in `${CLAUDE_PLUGIN_ROOT}/reviewers/`, and the choice decides what the reviewer is even allowed to count as evidence:
+
+1. **a plan document** — a plan mode session's, or `latest.md` → **always** `plan-critic.md`. No classification, no judgement call;
+2. otherwise, ask one question: **are the document's claims verifiable against this repository?** An analysis of this codebase, an ADR about this code, a post-mortem on it → `plan-critic.md`. A specification, a proposal, a note, anything whose subject is not this code → `doc-critic.md`;
+3. **if the user names the critic, they win.** Say which one you used either way.
+
+`plan-critic.md` demands a `file:line` on every point and treats a critique without one as an opinion. Aim that at a document that is not about code and it does not degrade — it manufactures references, and the failure modes below then read a correct review as a lazy one. `doc-critic.md` anchors each point to a verbatim quote of the document instead, and keeps the `file:line` requirement only for points that do touch the code.
+
+**The critic does not travel alone.** The framing line that introduces the document in the prompt is part of the choice — section 3 says why.
 
 ## 3. Run the review
 
 The document goes **inline in the prompt**, not as a path. The plan document usually lives outside the repo (`~/.claude/plans/…`), agy's workspace is the directory you hand it with `--add-dir`, and in plan mode you cannot copy the document into the repo — the plan file is the only thing you may write. Passing a path is not merely awkward, it does not work.
 
-This does not contradict "do not prepare context for it". That rule is about context **on the repository** — summaries, extracted code, a curated file list — which substitutes your framing for the reviewer's own reading. The document is not context: it is the **object under review**. By value or by reference is transport. The reviewer still reads the code itself, which is why the prompt says so explicitly.
+This does not contradict "do not prepare context for it". That rule is about context **on the repository** — summaries, extracted code, a curated file list — which substitutes your framing for the reviewer's own reading. The document is not context: it is the **object under review**. By value or by reference is transport. What the reviewer is told to do with the repository is the `FRAMING` line, and it follows the critic.
 
 ```bash
 PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
@@ -63,14 +77,18 @@ OUT="${TMPDIR:-/tmp}/plan-review-antigravity.txt"
 ERR="${TMPDIR:-/tmp}/plan-review-antigravity.err"
 REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-3.1-pro-high}"
 
-PROMPT="$(cat "${CLAUDE_PLUGIN_ROOT}/reviewers/plan-critic.md")
+# Section 2 chose these two together. They are one unit: see the constraint below.
+CRITIC="${CLAUDE_PLUGIN_ROOT}/reviewers/plan-critic.md"
+FRAMING="The document to critique follows in full between the markers. It is the object under review, not a description of the code: verify every claim it makes by reading this repository yourself."
+
+PROMPT="$(cat "$CRITIC")
 
 # Output Delivery Constraint
 - You MUST output the entire critique verbatim directly as your final response text to stdout.
 - Do NOT call \`write_to_file\` or create any artifact file on disk.
 - Do NOT save the review to a file: return the complete text directly in the stream.
 
-The document to critique follows in full between the markers. It is the object under review, not a description of the code: verify every claim it makes by reading this repository yourself.
+$FRAMING
 
 --- BEGIN DOCUMENT UNDER REVIEW ---
 $(cat "$PLAN")
@@ -99,6 +117,14 @@ Constraints:
 - **Flag order matters.** `-p` takes the next argument as its prompt, so every other flag goes *before* `-p`, and the prompt stays glued to it. `agy -p --mode plan "..."` makes `--mode` the prompt and silently drops the real one — agy does warn about this, which is why stderr is captured rather than discarded.
 - **`--add-dir` is not optional.** `cd` does nothing for agy: it does not take the working directory as its workspace. Asked to list its workspace without the flag, it answers `NO WORKSPACE`. With no file tree the model falls back on the shell to explore, and headless denies it. Quote the path — repositories have spaces in them.
 - **The four flags are one unit**, and section 4 explains why. `--mode plan` is agy's read-only execution mode and `--sandbox` adds terminal restrictions; those two are what makes `--dangerously-skip-permissions` acceptable, and it is what keeps a long exploration from dying on an auto-denied tool. `--effort high` is the quality lever. Do not drop one and keep the rest: without skip-permissions, `--effort high` makes the run reach for the shell and die.
+- **`CRITIC` and `FRAMING` are one unit.** The block above carries the plan-critic pair. For a document that is not about this code, both lines change together:
+
+  ```bash
+  CRITIC="${CLAUDE_PLUGIN_ROOT}/reviewers/doc-critic.md"
+  FRAMING="The document to critique follows in full between the markers. It is the object under review. Where it makes claims about this repository, verify them by reading the code yourself; where it makes none, judge the document on its own terms and say so in the closing section. Do not manufacture code references for a document that is not about code."
+  ```
+
+  Swapping the critic and leaving the plan-critic framing in place is the one mistake that costs the whole run: *«verify every claim it makes by reading this repository yourself»* is an order to find code behind a text that has none, and the model obeys it by inventing references. The reverse — doc framing with `plan-critic.md` — quietly drops the verification the plan needed.
 - **The Output Delivery Constraint is load-bearing.** Without it, on a long critique agy writes the review to an artefact file and returns a one-line pointer on stdout — plausible, non-empty, and useless. See the failure mode below.
 - **The model is pinned to a Pro tier** because agy's own default is a Flash tier: fine for cost, weak as an adversary. Override with `PLAN_REVIEW_MODEL`, and see the failure mode below for when the pin goes stale. `agy models` lists what is available — that list also carries Claude and GPT-OSS models, so agy is a multi-vendor transport and a third opinion is a `--model` flag rather than another skill.
 - `--print-timeout` is agy's own timeout (default 5m), so no `timeout`/`gtimeout` wrapper is needed here.
@@ -144,9 +170,11 @@ then complete the browser login and quit. Say the review will work from then on,
 
 **Empty stdout with exit 0** — treat as a failed run, not as "no critique found". Read stderr first. If stderr does not settle it, re-run once with `--log-file "${TMPDIR:-/tmp}/agy-review.log"` added and grep the log for `permission|grant|project`: that is what distinguishes a lost workspace from a tool that stopped the run, and it is the only diagnostic that turns the one-line error into a cause. Adding the flag for diagnosis is not a retry around the problem — report what it says, then stop.
 
-**A critique that never cites the code** — with the document inline, a lazy reviewer can critique the text alone. If nothing in the critique names a `file:line` the document itself does not mention, it did not verify anything. Say so rather than passing off a text review as a code-grounded one.
+**A critique that never cites the code** — **under `plan-critic.md` only.** With the document inline, a lazy reviewer can critique the text alone. If nothing in the critique names a `file:line` the document itself does not mention, it did not verify anything. Say so rather than passing off a text review as a code-grounded one.
 
-A critique that *did* come back but lists few files read is **not** a failure case. Report the count and move on, as the response protocol says: on a new or nearly empty repo a short list is the correct outcome, and you cannot tell that apart from a permissions problem without knowing the repo better than the user does.
+Do **not** apply this check to a `doc-critic.md` run. There, a review with no `file:line` at all is the expected shape for a document that is not about this code, and reading it as a failure is exactly the misdiagnosis the second critic exists to prevent. Its analogue is **a critique that never quotes the document**: every point under doc-critic is anchored to a verbatim passage, so if none of them quotes anything, the reviewer commented without reading. That one is a real failure — report it.
+
+A critique that *did* come back but lists few files read is **not** a failure case. Report the count and move on, as the response protocol says: on a new or nearly empty repo a short list is the correct outcome, and you cannot tell that apart from a permissions problem without knowing the repo better than the user does. Under `doc-critic.md` the closing section is `Sources read`, and an explicitly empty one — *"the document is not about this repository"* — is a correct outcome, not a shallow review.
 
 ## 6. Handle the output
 
