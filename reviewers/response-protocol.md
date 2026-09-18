@@ -20,6 +20,8 @@ Treat the run as failed if any of these hold:
 - the process was killed by the timeout
 - **the output is a pointer rather than a critique** — a short paragraph saying the review was written to a file, naming a path. It is not empty, so nothing above catches it. A review has a `VERDICT:` line and labelled points; anything else is a failed run, whatever it says about itself.
 
+A run **killed by the ceiling** is a failed run too, and it is the only one whose cause you already know: the tier was misjudged, not the reviewer. Report the tier it ran under and offer the next one — the tables in the two skills name them. Offering is not re-running, and point 3 below still holds.
+
 When the run failed:
 
 1. **Say so.** Report which reviewer failed and quote the CLI's own error message, trimmed to the useful lines. Do not paraphrase it into "something went wrong".
@@ -114,7 +116,7 @@ Rules:
 
 Three lines, in this order:
 
-1. The reviewer's verdict, which reviewer produced it, **which critic it ran under**, and how many files or sources it read.
+1. The reviewer's verdict, which reviewer produced it, **which critic it ran under**, and how many files or sources it read. Name the **ceiling** as well when it mattered: a run above the floor tier, or a run that hit the ceiling.
 2. How many points accepted and how many rejected, broken down by label.
 3. What section 3 decided about the plan — or, for a document that is not a plan, what you would change in it.
 

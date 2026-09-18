@@ -21,7 +21,7 @@ Two rules, in order of precedence.
 
 Plan mode blocks writes, not reads — bash runs fine there, and the plan document is the one file you may edit. So the whole *review → revise → propose* loop closes inside plan mode, and the user sees the plan and the critique together instead of having to reject a plan just to get it reviewed.
 
-A review is an agy call of up to `--print-timeout 300s` in the middle of planning. That cost is why trivial plans are excluded.
+A review is an agy call of up to half an hour in the middle of planning — the ceiling is a tier picked per document, section 3. That cost is why trivial plans are excluded.
 
 **Either way, the plan says so.** A decision nobody can see did not happen: a plan with no review looks exactly like a plan whose review was never mentioned. When the review runs, the trace is section 4 of the response protocol. When you skip it, write the line yourself, right after the document's `#` title, with the reason:
 
@@ -69,6 +69,32 @@ The document goes **inline in the prompt**, not as a path. The plan document usu
 
 This does not contradict "do not prepare context for it". That rule is about context **on the repository** — summaries, extracted code, a curated file list — which substitutes your framing for the reviewer's own reading. The document is not context: it is the **object under review**. By value or by reference is transport. What the reviewer is told to do with the repository is the `FRAMING` line, and it follows the critic.
 
+### The ceiling
+
+`--print-timeout` is a **ceiling, not a budget**: a review that needs four minutes finishes in four minutes whatever the ceiling is. Raising it costs nothing on a healthy run — it costs wall clock only on a run that hangs, and it is spent inside plan mode. So the ceiling does not answer *how much compute do I grant*, it answers **how long do I wait before concluding something is broken** — and that is why you err high. A ceiling set too low costs the whole run plus the next one: 5 then 15 makes 20 minutes where starting at 15 makes 15.
+
+Three tiers. agy caps nothing on turns, so here the tier is one number; the Claude skill's table carries two.
+
+| Tier | `--print-timeout` |
+|---|---|
+| **short** | `300s` |
+| **standard** | `900s` |
+| **deep** | `1800s` |
+
+Pick one as **a judgement you state, not a threshold you count**:
+
+- **short** — a short, contained document: a plan over a handful of files in one component, a note of two pages. This is the **floor, not the default**.
+- **standard** — the ordinary case for anything the skill fires on by itself. A plan with architectural consequences, several modules touched, a document past ~10 KB, a repo of some hundreds of files. **In doubt between two tiers, take the higher one.**
+- **deep** — the user asked for a review in depth; or a previous run hit the ceiling; or the plan rewrites something structural across a large repo.
+
+Every signal is free and in hand before the run: the size of the document (you are reading it anyway, to inline it), how many distinct files and modules the plan names, and `git ls-files | wc -l` for the size of the repo. Nothing here is estimated by feel.
+
+**That the floor is not the default follows from section 0, not from taste.** The unprompted review fires *only* on non-trivial plans, and non-trivial is defined there as a plan with architectural consequences — so those runs are born above the floor. Keeping 5 minutes as the default would tune the ceiling for the one case section 0 has just finished excluding.
+
+Say which tier you ran under when it is not the floor: the rule is section 5 of the response protocol.
+
+### The command
+
 ```bash
 PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
 cd "$PROJECT" || exit 1
@@ -76,6 +102,8 @@ PLAN="<PLAN_PATH>"
 OUT="${TMPDIR:-/tmp}/plan-review-antigravity.txt"
 ERR="${TMPDIR:-/tmp}/plan-review-antigravity.err"
 REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-3.1-pro-high}"
+# The tier chosen above goes here. Seconds, bare integer, no unit — the "s" is appended below.
+REVIEW_TIMEOUT="${PLAN_REVIEW_TIMEOUT:-900}"
 
 # Section 2 chose these two together. They are one unit: see the constraint below.
 CRITIC="${CLAUDE_PLUGIN_ROOT}/reviewers/plan-critic.md"
@@ -101,7 +129,7 @@ agy \
   --effort high \
   --add-dir "$PROJECT" \
   --model "$REVIEW_MODEL" \
-  --print-timeout 300s \
+  --print-timeout "${REVIEW_TIMEOUT}s" \
   -p "$PROMPT" \
   <"/dev/null" >"$OUT" 2>"$ERR"
 RC=$?
@@ -127,7 +155,7 @@ Constraints:
   Swapping the critic and leaving the plan-critic framing in place is the one mistake that costs the whole run: *«verify every claim it makes by reading this repository yourself»* is an order to find code behind a text that has none, and the model obeys it by inventing references. The reverse — doc framing with `plan-critic.md` — quietly drops the verification the plan needed.
 - **The Output Delivery Constraint is load-bearing.** Without it, on a long critique agy writes the review to an artefact file and returns a one-line pointer on stdout — plausible, non-empty, and useless. See the failure mode below.
 - **The model is pinned to a Pro tier** because agy's own default is a Flash tier: fine for cost, weak as an adversary. Override with `PLAN_REVIEW_MODEL`, and see the failure mode below for when the pin goes stale. `agy models` lists what is available — that list also carries Claude and GPT-OSS models, so agy is a multi-vendor transport and a third opinion is a `--model` flag rather than another skill.
-- `--print-timeout` is agy's own timeout (default 5m), so no `timeout`/`gtimeout` wrapper is needed here.
+- **`--print-timeout` carries the tier, and the tier is ours.** agy's own default is `0s` — it waits for the turn to complete, with no limit at all — so the ceiling is a choice this skill makes, not a constraint it inherits. This constraint used to say *«agy's own timeout (default 5m)»*, and a limit you believe you inherited is a limit you never reconsider. `PLAN_REVIEW_TIMEOUT` overrides it, in **seconds as a bare integer**: the `s` is appended by the command, so `PLAN_REVIEW_TIMEOUT=900s` builds `900ss` and agy rejects it. Being agy's own flag it needs no `timeout`/`gtimeout` wrapper.
 - **Inlining is safe on size.** A 17 KB plan against a 1 MB `ARG_MAX` is under 2%. A document would have to reach hundreds of KB to matter; past that size the document is the problem.
 - The clean response goes to stdout, diagnostics to stderr — hence no `jq`. If the user wants the JSON envelope, verify the field name with `agy --output-format json ... -p "..."` before parsing it.
 - Requires cached credentials from a prior interactive `agy` login on this machine.
@@ -166,7 +194,7 @@ then complete the browser login and quit. Say the review will work from then on,
 
 **Prompt swallowed by a flag** — stderr contains `took "--…" as its prompt`. That is a bug in the command line, not in the environment: move the flag before `-p` and re-run once.
 
-**Timeout** — agy stops at `--print-timeout` and the output is truncated or empty. Report it and offer a longer timeout; do not silently re-run.
+**Hit the ceiling** — agy stops at `--print-timeout` and the output comes back truncated or empty; section 0 of the response protocol already counts a run killed by the timeout as a failed one. **Hitting the ceiling means the tier was misjudged, not that the reviewer failed**, so report it as that: name the tier it ran under, name the next one with its number (`300s` → `900s` → `1800s`), and offer it. **Do not re-run on your own** — the ban is the response protocol's, and a second run costs money and answers a question the user did not ask. The way not to arrive here is in section 3: err high on the first tier.
 
 **Empty stdout with exit 0** — treat as a failed run, not as "no critique found". Read stderr first. If stderr does not settle it, re-run once with `--log-file "${TMPDIR:-/tmp}/agy-review.log"` added and grep the log for `permission|grant|project`: that is what distinguishes a lost workspace from a tool that stopped the run, and it is the only diagnostic that turns the one-line error into a cause. Adding the flag for diagnosis is not a retry around the problem — report what it says, then stop.
 
