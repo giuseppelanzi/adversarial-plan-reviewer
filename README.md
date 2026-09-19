@@ -9,7 +9,7 @@ It runs on its own on any non-trivial plan, and always when you ask for it. But 
 ## How it works
 
 1. Write a plan in plan mode.
-2. **Before the plan is proposed to you**, the review fires on it. The skill hands the plan document to the external reviewer, which reads the repo read-only and comes back with a `PASS` / `FAIL` verdict, labelling every point `[BLOCKING]`, `[SHOULD-FIX]` or `[NOTE]`.
+2. **Before the plan is proposed to you**, the review fires on it. On the first review of a conversation the skill spends fifteen seconds on a **read probe** first — *list the files at the root, nothing else* — and compares the answer with the real directory. Then it hands the plan document to the external reviewer, which reads the repo read-only and comes back with a `PASS` / `FAIL` verdict, labelling every point `[BLOCKING]`, `[SHOULD-FIX]` or `[NOTE]`.
 3. Claude answers each point `ACCEPTED` / `REJECTED` with its concrete consequence, rewrites the plan for what it accepted, and states what that means: a blocking point needs another pass, a should-fix changes the plan and moves on.
 4. You get the plan and the critique together, and approve or reject once.
 
@@ -52,11 +52,13 @@ Two reviewers are available. Antigravity is the default; Claude only fires if yo
 | `/plan-review:antigravity` | `agy --mode plan --sandbox` | plan mode + sandbox, with `--add-dir` as the workspace | stdout |
 | `/plan-review:claude` | `claude -p --permission-mode plan` | flag + tool allowlist | `.result` |
 
+Both are gated on the same fifteen-second preflight, and the probe runs with **the review's own flags** — that is what makes it worth the fifteen seconds. It is a dress rehearsal, not a health check: a probe that ran with a friendlier command line would prove nothing about the run it precedes. When it fails, the review does not start, the plan is stamped `Plan NOT verified`, and you get the CLI's own error with its remedy.
+
 Antigravity is the default because it is a *different vendor's* model: it does not share your blind spots. Headless Claude verifies a plan against the code well, but it shares your model family, your `CLAUDE.md` and your conventions, which makes it the weaker adversary. Use it when you want repo-grounded verification rather than genuine disagreement.
 
 Gemini CLI used to be the default and has been removed: Google is folding Gemini Code Assist for individuals into Antigravity, and the standalone CLI now answers `IneligibleTierError` on that tier. Nothing was lost in the swap — both are Google, so the cross-vendor axis that makes the review worth running is intact. It is in the git history if you ever want it back.
 
-If a reviewer's CLI fails — not logged in, tools auto-denied, missing binary — the skill reports the CLI's own error and stops. It never retries around the problem and never falls back to a different reviewer on its own: that costs money and answers a question you did not ask. It offers the alternative in one line and waits.
+If a reviewer's CLI fails — not logged in, tools auto-denied, missing binary, or the call blocked by your own permission classifier before it ever launched — the skill reports the error and stops. It never retries around the problem and never falls back to a different reviewer on its own: that costs money and answers a question you did not ask. It offers the alternative in one line and waits.
 
 ---
 
@@ -196,7 +198,18 @@ This is the only thing the system writes into your projects. Add `.claude/plans/
 
 - `jq` — used by the hook and by the Claude skill.
 - At least one of `agy` or `claude`. You simply do not use the skill for the other.
-- For `agy`: credentials cached from an earlier interactive login (`agy`, once, in a terminal). Nothing else — no per-repository permission grant. An earlier version of this README said otherwise; see the traps below.
+- For `agy`: credentials cached from an earlier interactive login (`agy`, once, in a terminal). Nothing on agy's side beyond that — no per-repository permission grant. An earlier version of this README said otherwise; see the traps below.
+- For `agy`, **a handful of shell commands allowed once**, and it is the only setup you add by hand. The reviewer reads named files without asking anything, but to *look around* a directory it reaches for the shell — and headless agy cannot show you a prompt, so the run stops and the skill hands you the request instead. Granting it is one line in agy's own `~/.gemini/antigravity-cli/settings.json`:
+
+  ```json
+  "permissions": { "allow": ["command(ls)", "command(cat)", "command(head)", "command(tail)", "command(wc)", "command(grep)"] }
+  ```
+
+  Measured: with exactly those six, a 13 KB plan was reviewed end to end with no denial at all. The grant is **per command prefix** and it **persists**, so this is a one-off per machine rather than a toll on every review — and you can also let agy write it for you, by answering *«always allow for commands that start with `X` (Persist to settings.json)»* the first time you hit the prompt in an interactive session.
+
+  Two commands are deliberately **not** in that list. `find` is the one agy still reaches for now and then, and `find -exec` runs arbitrary commands; `python3` is arbitrary code outright. Granting either is a real decision, so the plugin states it and leaves it to you rather than slipping it into a setup snippet.
+
+  If you would rather grant nothing, the alternative is `--dangerously-skip-permissions`, which approves every tool for one run. It is not the default, and the traps below say what that costs you with Claude Code's own classifier.
 - Optional: `timeout` (GNU coreutils, `brew install coreutils` on macOS, where it lands as `gtimeout`). The Claude skill detects either name and runs with no wall-clock ceiling if neither is there, leaving `--max-turns` as the only bound; the agy skill uses `--print-timeout` instead. Either way the ceiling comes from a tier — 5, 15 or 30 minutes — chosen per document.
 
 ---
@@ -233,10 +246,10 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
 - **Critic prompts**: `reviewers/plan-critic.md` and `reviewers/doc-critic.md`. These are the files you will tweak most often. **One critic per kind of document, shared by both reviewers** — never one per reviewer: the comparability that matters is between `agy` and `claude` on the same document, and splitting along that axis is what would destroy it. The two critics differ on what counts as evidence, not on rigour: plan-critic demands a `file:line` per point, doc-critic a verbatim quote of the document.
 - **Response protocol**: `reviewers/response-protocol.md`. Home of the binary `ACCEPTED`/`REJECTED` rule and of what each severity does to the plan.
 - **Severity levels and the pass bar**: both critic prompts, which keep them identical on purpose. `FAIL` fires if and only if at least one point is `[BLOCKING]`, and blocking requires naming what concretely goes wrong. Loosen that definition and everything starts failing; tighten it and nothing does. What `[BLOCKING]` *means* is the one thing that differs: implementing the plan produces work to redo, versus acting on the document produces a wrong decision.
-- **Which critic runs on what**: the selection rule in each `SKILL.md`, section 2 (Antigravity) / section 1 (Claude). A plan is never classified — it always gets `plan-critic.md`.
+- **Which critic runs on what**: the selection rule in each `SKILL.md`, section 2 (Antigravity) / section 2 (Claude). A plan is never classified — it always gets `plan-critic.md`.
 - **Default reviewer**: it lives in the `description` of `skills/antigravity` ("use it as the default when the user asks for a review without naming a reviewer"). To change it, move that sentence into the other skill.
 - **Reviewer model**: pinned in `skills/antigravity/SKILL.md` to `gemini-3.1-pro-high`, because agy's own default is a Flash tier. Override per run with `PLAN_REVIEW_MODEL=<model>`, or change the pin. This is the single biggest lever on review quality.
-- **The agy flag set**: `--mode plan --sandbox --dangerously-skip-permissions --effort high --add-dir`, in `skills/antigravity/SKILL.md`. They work as one unit — the traps below say why pulling one out breaks the others. `--effort high` is the second quality lever after the model pin; the two sandboxing flags are what make the third acceptable.
+- **The agy flag set**: `--mode plan --sandbox --effort high --add-dir --output-format stream-json`, in `skills/antigravity/SKILL.md`. `--mode plan` is agy's read-only execution mode, `--sandbox` adds terminal restrictions, `--effort high` is the second quality lever after the model pin, `--add-dir` is the workspace and is not optional. `--output-format stream-json` is what turns every failure from prose into an event you can query — and `--dangerously-skip-permissions` is deliberately **not** in the set; the traps below say why.
 - **The ceiling on a run**: three tiers, picked per document by the skill and stated when it is not the floor.
 
   | Tier | agy | claude |
@@ -245,7 +258,7 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
   | standard | `--print-timeout 900s` | `timeout 900` / `--max-turns 40` |
   | deep | `--print-timeout 1800s` | `timeout 1800` / `--max-turns 60` |
 
-  The selection rule lives in `skills/antigravity/SKILL.md` section 3 and `skills/claude/SKILL.md` section 2: a judgement from the size of the document, how many files and modules the plan names, and the size of the repo, with the higher tier taken in doubt. The floor is deliberately *not* the default — the unprompted review only fires on non-trivial plans, so its runs start above it. Per-run overrides: `PLAN_REVIEW_TIMEOUT` (seconds, bare integer, both skills) and `PLAN_REVIEW_MAX_TURNS` (the Claude side only, where the two numbers are one unit).
+  The selection rule lives in `skills/antigravity/SKILL.md` section 3 and `skills/claude/SKILL.md` section 3: a judgement from the size of the document, how many files and modules the plan names, and the size of the repo, with the higher tier taken in doubt. The floor is deliberately *not* the default — the unprompted review only fires on non-trivial plans, so its runs start above it. Per-run overrides: `PLAN_REVIEW_TIMEOUT` (seconds, bare integer, both skills) and `PLAN_REVIEW_MAX_TURNS` (the Claude side only, where the two numbers are one unit).
 - **When it fires unprompted**: the trivial/non-trivial line lives in the `description` of `skills/antigravity`. Widen or narrow it there.
 - **The hook's notice**: the text it prepends when a plan declares no review. Fixed English string in `hooks/save-plan.sh`, overridable per environment with `PLAN_REVIEW_NOTICE`. The skill's own trace follows the language of the plan; the hook cannot know it.
 - **Language**: the instructions are in English, the output follows the language of the conversation or of the document. The rule is written in three places — both critic prompts and the response protocol. It applies to the critics' section headings too: on an Italian document `## Sources read` comes back as `## Fonti lette`, which is why the response protocol matches that section by role rather than by its exact English name.
@@ -254,11 +267,11 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
 
 ## Known traps
 
-- **Headless `agy` has no workspace, and that is what used to break the review.** `cd` is invisible to it: asked to list its workspace without `--add-dir`, it answers `NO WORKSPACE`. With no file tree the model explores through the shell instead, headless cannot show an approval dialog, and the shell call is auto-denied — **zero bytes on stdout while exiting 0**, with `a tool required the "command" permission … so it was auto-denied` on stderr. Judge the run by its output, never by its exit code: 0 is also what success returns.
+- **Headless `agy` has no workspace, and that is what used to break the review.** `cd` is invisible to it: asked to list its workspace without `--add-dir`, it answers `NO WORKSPACE`. With no file tree even reading is refused — the denial names **`read_file`**, because there is nothing to read — and the run ends with **zero bytes while exiting 0**. Judge the run by its output, never by its exit code: 0 is also what success returns.
 
   **This README used to diagnose that error as missing permissions** and sent you off to grant them interactively, once per repository. That was wrong, and worth saying plainly because the wrong remedy is the memorable one: the CLI resolves the same `default-cli-project` whatever folder you launch from, and the logs show zero grants *in the runs that succeed too*. The fix is `--add-dir "$PROJECT"` on the command line, plus the flags below.
 
-  **The tool named in the error is not the permission you are missing.** It is whichever call tripped first, and it changes between identical runs — `command`, then `read_file`, then `command` again. Chasing that name is what produced the wrong diagnosis in the first place.
+  **The tool named in the error is not the permission you are missing.** It is whichever call tripped first, and it changes between runs — `command`, then `read_file`, then `command` again. Chasing that name is what produced the wrong diagnosis in the first place. It does tell you *where* the run broke, though: with the workspace missing the denied tool is **`read_file`**, measured — with no file tree there is nothing to read, which is why the model ends up at the shell rather than the other way round.
 
   Check the workspace claim yourself, from inside any repo — it takes one call and no permissions:
 
@@ -267,7 +280,23 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
   Use ONLY your file-listing tool. If you have no workspace, say: NO WORKSPACE." </dev/null
   ```
 
-- **The skill now auto-approves agy's tools, on purpose.** `--dangerously-skip-permissions` is in the command, which reverses this README's earlier position, and it only holds because of what surrounds it: `--mode plan` is agy's read-only execution mode and `--sandbox` adds terminal restrictions. Measured on a throwaway copy of this repo, a full review under those flags left all 18 files byte-identical. It does **not** protect the rest of the filesystem — agy writes inside its own working directory regardless. If that trade is not one you want, drop the flag and declare the shell unavailable in the prompt instead: that also produces a review, from file-reading tools alone, but then `--effort high` has to go too — with the shell denied, high effort makes the model reach for it anyway and the run dies at zero bytes.
+- **Reading is free; looking around is not.** This is the one to understand, because everything else follows from it. agy reads a named file with no permission at all, in any folder, trusted or not. But to *enumerate* a directory it reaches for the shell — it has `list_dir` and uses `run_command` anyway — and headless agy cannot show you an approval dialog, so the call is auto-denied and the run stops. From the outside that looks like success: `status: SUCCESS`, an empty response, exit code 0.
+
+  The plugin does not work around this. It forwards it: the run reports **the exact command** agy asked for, you decide, and the review resumes where it stopped. Which is why the prerequisites above are a list of shell commands and not a flag.
+
+- **Three remedies that look obvious and do nothing.** Each was measured in a folder where the denial reproduces every time, and each cost a run to rule out. **Trusting the workspace**: agy does ask interactively and keeps a `trustedWorkspaces` list, but the same folder, trusted, fails identically — while an untrusted folder elsewhere listed its root without complaint. Trust is an interactive gate, not a headless permission. **Naming the tool**: agy's own reasoning has claimed there is «no `list_directory` tool» while `list_dir` sat in the tool list it had just been handed; telling it otherwise does not stop it reaching for `run_command`. **Dropping `--mode plan`**: the changelog grants workspace-scoped read *and list* access under the default review mode, which reads like the answer, and the denial is identical with the flag and without it.
+
+- **If you reach for `--dangerously-skip-permissions`, your own host blocks it.** It is the escape hatch, not the default: it approves every tool for one run. In auto mode Claude Code's classifier refuses to launch a command carrying it — `Reason: [Create Unsafe Agents]` — and nothing ever reaches agy. The honest reading is that the check is doing its job, since the command does start an agent with its permissions waived. Lifting it is one line in `~/.claude/settings.json`, `"permissions": { "allow": ["Bash(agy --mode plan --sandbox --dangerously-skip-permissions:*)"] }`, and an allow rule that matches is evaluated before the classifier.
+
+  **Claude cannot write that rule for you**, and shouldn't: editing your permission rules from inside a session is refused in its own right (`[Auto-Mode Bypass]`). Nor does the plugin hide the flag inside a wrapper script to keep the classifier from reading the string — that would work, and it would defeat the intent of a check you installed.
+
+  Two things this repo will not do about it. It will not let Claude write that rule for itself — that is separately refused, `[Auto-Mode Bypass]`, and an agent that grants itself permissions is precisely what the check exists for. And it will not hide the flag in a wrapper script to keep the classifier from reading the string: that works, and it defeats the intent of a check you installed. If the shortcut occurs to you while reading the skill, it occurred to us too.
+
+- **Do not tell the reviewer which tools to use.** An earlier draft of the skill put *«the shell is not available to you, use the file-reading tools»* in the prompt, as a way of avoiding the denial. It failed twice over: agy reached for `run_command` anyway, and — worse — it pre-empted the choice the plugin exists to forward. Telling the reviewer a fact about its environment is fair (*this run has no channel to answer you*, *a background task dies when the turn ends*); telling it how to work is the same mistake as preparing its context, one layer down.
+
+- **The event stream is what makes a failure legible.** `--output-format stream-json` costs nothing and replaces a pile of heuristics on stderr: a denial is a `step_update` in `state: "ERROR"` carrying the exact `CommandLine`, a run killed by the ceiling is the absence of a `result` event, an artefact or a subagent shows up as its own step, and the critique itself is `.result.response`. `init.conversation_id` is the other half — with it, `--conversation "<id>"` resumes a review that stopped for a permission instead of paying for it twice. Measured: the resumed run kept everything it had read and carried on.
+
+- **The probe is a dress rehearsal, not a health check.** Before the first review of a conversation, each skill asks its reviewer to list the root of the workspace and compares the answer with `ls -A`. It asks for the *listing* on purpose: reading works everywhere, enumerating is the thing that stops runs, and a review that cannot enumerate cannot explore. Fifteen seconds settle what would otherwise surface at the end of a quarter-hour run — credentials, the model pin, the workspace, and the shell question. It runs with the review's own flags for the same reason a rehearsal uses the real set: softened, it would predict nothing. It passes when the names are the ones of *this* directory, including at least one a model could not have guessed. When it fails it fails **usefully**, naming the command that was refused, which is a question to forward rather than a dead end — and until it is answered the review does not start and the plan is stamped `Plan NOT verified`.
 
 - **A long critique comes back as a pointer, not as the review.** Left alone, agy treats an extensive report as an artefact: it writes the review to a file under its own working directory and returns one line on stdout naming the path. That output is *not empty*, so it sails past every "did the run fail" check. The prompt carries an **Output Delivery Constraint** to prevent it — three lines forbidding `write_to_file` and demanding the critique verbatim in the response. If you ever see a plan review summarised as "the review is in review.md", that constraint went missing.
 
