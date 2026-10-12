@@ -17,7 +17,35 @@ The trace rule is the same one the other skill carries: whatever the outcome, th
 
 The timing is the same as the other reviewer's: *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Plan mode blocks writes, not reads, and the plan document is the one file you may edit — so the *review → revise → propose* loop closes inside plan mode rather than forcing the user to reject a plan just to get it reviewed.
 
-## 1. Locate the document, then pick the critic
+## 1. Preflight — can the reviewer read this repo?
+
+**Once per conversation and per working directory, before the first review.** Not before every review: once it has passed, say so and move on.
+
+The probe is a **dress rehearsal of the review**: same transport, same permission mode, same tool allowlist — only the prompt is shorter and the turn budget smaller. Keep it that way, or it stops predicting anything about the run it is meant to protect.
+
+```bash
+cd "${CLAUDE_PROJECT_DIR:-$PWD}" || exit 1
+OUT="${TMPDIR:-/tmp}/plan-review-probe-claude.json"
+PROBE="List the names of the files and directories at the root of this repository, one per line, nothing else — no commentary, no code fences."
+
+echo "=== the real root ==="; ls -A
+claude -p --permission-mode plan --allowedTools "Read,Grep,Glob" --disallowedTools "Write,Edit,Bash" --max-turns 5 --output-format json "$PROBE" <"/dev/null" >"$OUT" 2>&1
+RC=$?
+echo "=== exit $RC ==="
+jq -r 'if .is_error then "PROBE ERROR: \(.result // .error // "unknown")" else (.result // empty) end' <"$OUT" 2>/dev/null || head -c 500 "$OUT"
+```
+
+Half a minute, and it settles in one turn what otherwise fails at the end of a long run: credentials and quota, the allowlist, and whether the reviewer can see this directory at all.
+
+**Reading the result.** `ls -A` prints the real root for free — compare against it. It **passes** when the names are the ones of *this* directory, including at least one a model could not have guessed. It **fails** on an empty or missing `.result`, on `.is_error`, on prose instead of names, or on a plausible generic project — `src/`, `package.json` — that is not this one.
+
+**If it fails, the review does not run.** Report the CLI's own error with the remedy section 4 of this skill gives for it, write the *failed* stamp of section 4 of the response protocol onto the plan naming the probe as the cause, and stop.
+
+**The probe is not a review.** No critic, no verdict, and it never counts toward files read.
+
+**Why this side has nothing to forward.** On the agy transport a review can stop because the reviewer asked for a permission nobody could answer, and that skill's job is then to hand the request to the user. Here the tool set is decided on the command line — `--allowedTools "Read,Grep,Glob"`, `--disallowedTools "Write,Edit,Bash"` — so the reviewer never asks for anything: it reads, or the run fails for a reason that has nothing to do with permissions. That is also why this probe is cheaper to trust and why a failure here points at credentials, quota or the turn ceiling instead.
+
+## 2. Locate the document, then pick the critic
 
 ### The document
 
@@ -41,9 +69,9 @@ Same rule as the other skill, and the two critics live in the same `${CLAUDE_PLU
 2. otherwise, **are the document's claims verifiable against this repository?** An analysis of this codebase, an ADR, a post-mortem on it → `plan-critic.md`. A specification, a proposal, a note, anything whose subject is not this code → `doc-critic.md`;
 3. **if the user names the critic, they win.** Say which one you used either way.
 
-`plan-critic.md` requires a `file:line` on every point; pointed at a text that is not about code it invents them. `doc-critic.md` anchors each point to a verbatim quote of the document instead. The framing line in the prompt is chosen with the critic, not separately — section 2 shows both pairs.
+`plan-critic.md` requires a `file:line` on every point; pointed at a text that is not about code it invents them. `doc-critic.md` anchors each point to a verbatim quote of the document instead. The framing line in the prompt is chosen with the critic, not separately — section 3 shows both pairs.
 
-## 2. Run the review
+## 3. Run the review
 
 The document goes **inline in the prompt**, not as a path: the plan document usually lives outside the repo, and in plan mode you cannot copy it in — the plan file is the only thing you may write.
 
@@ -81,7 +109,7 @@ ERR="${TMPDIR:-/tmp}/plan-review-claude.err"
 REVIEW_TIMEOUT="${PLAN_REVIEW_TIMEOUT:-900}"
 REVIEW_TURNS="${PLAN_REVIEW_MAX_TURNS:-40}"
 
-# Section 1 chose these two together. They are one unit: see the constraint below.
+# Section 2 chose these two together. They are one unit: see the constraint below.
 CRITIC="${CLAUDE_PLUGIN_ROOT}/reviewers/plan-critic.md"
 FRAMING="The document to critique follows in full between the markers. It is the object under review, not a description of the code: verify every claim it makes by reading this repository yourself."
 
@@ -130,7 +158,7 @@ Constraints:
 - Add `--model` if the user wants a specific one. Default is fine otherwise.
 - No `@file` syntax here: the document is in the prompt, and the repo is what the reviewer reads on its own.
 
-## 3. Failure modes
+## 4. Failure modes
 
 Follow section 0 of the response protocol: report the error, give the remedy, **do not run another reviewer CLI on your own**.
 
@@ -148,6 +176,6 @@ Follow section 0 of the response protocol: report the error, give the remedy, **
 
 Do **not** apply this check to a `doc-critic.md` run: there, no `file:line` at all is the expected shape for a document that is not about this code. Its analogue is **a critique that never quotes the document** — every doc-critic point is anchored to a verbatim passage, so if none of them quotes anything, the reviewer commented without reading.
 
-## 4. Handle the output
+## 5. Handle the output
 
 Follow `${CLAUDE_PLUGIN_ROOT}/reviewers/response-protocol.md`. Read it before writing anything.
