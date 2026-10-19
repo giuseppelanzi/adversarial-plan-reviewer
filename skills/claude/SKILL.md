@@ -1,6 +1,6 @@
 ---
 name: claude
-description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo, then forces a point-by-point response to the critique. Use this skill only when the user explicitly asks for a review by Claude, by "a second Claude", or by Claude Code itself. For a review with no reviewer named, use /plan-review:antigravity instead. Like it, on a plan this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
+description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user explicitly asks for a review by Claude, by "a second Claude", or by Claude Code itself. For a review with no reviewer named, use /plan-review:antigravity instead. Like it, on a plan this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
 ---
 
 # Plan review — headless Claude Code
@@ -15,7 +15,9 @@ Only when the user names Claude as the reviewer. For an unnamed review, `/plan-r
 
 The trace rule is the same one the other skill carries: whatever the outcome, the plan document ends up with a `> **Review**: …` line right after its title — section 4 of the response protocol.
 
-The timing is the same as the other reviewer's: *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Plan mode blocks writes, not reads, and the plan document is the one file you may edit — so the *review → revise → propose* loop closes inside plan mode rather than forcing the user to reject a plan just to get it reviewed.
+This reviewer never starts on its own, and it never goes through the question the other skill asks when a plan is ready: the user names it, and that is the request. The rest follows the response protocol like the other reviewer: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
+
+The timing is the same as the other reviewer's: *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Plan mode blocks writes, not reads, and the plan document is the one file you may edit — so the *review → choose → revise → propose* loop closes inside plan mode rather than forcing the user to reject a plan just to get it reviewed.
 
 ## 1. Preflight — can the reviewer read this repo?
 
@@ -43,7 +45,7 @@ Half a minute, and it settles in one turn what otherwise fails at the end of a l
 
 **The probe is not a review.** No critic, no verdict, and it never counts toward files read.
 
-**Why this side has nothing to forward.** On the agy transport a review can stop because the reviewer asked for a permission nobody could answer, and that skill's job is then to hand the request to the user. Here the tool set is decided on the command line — `--allowedTools "Read,Grep,Glob"`, `--disallowedTools "Write,Edit,Bash"` — so the reviewer never asks for anything: it reads, or the run fails for a reason that has nothing to do with permissions. That is also why this probe is cheaper to trust and why a failure here points at credentials, quota or the turn ceiling instead.
+**Why this side has nothing to forward.** On the agy transport the tool set is fixed too, by the `plan-reviewer` agent, and what can still stop a review there is a read outside the workspace, which that skill reports with `--add-dir` as the remedy. Here the tool set is decided on the command line — `--allowedTools "Read,Grep,Glob"`, `--disallowedTools "Write,Edit,Bash"` — so the reviewer never asks for anything: it reads, or the run fails for a reason that has nothing to do with permissions. That is also why this probe is cheaper to trust and why a failure here points at credentials, quota or the turn ceiling instead.
 
 ## 2. Locate the document, then pick the critic
 
@@ -95,7 +97,7 @@ Pick one as **a judgement you state, not a threshold you count**:
 - **standard** — the ordinary case: a plan with architectural consequences, several modules touched, a document past ~10 KB, a repo of some hundreds of files. **In doubt, take the higher tier.**
 - **deep** — a review in depth was asked for; or a previous run hit a ceiling; or the plan rewrites something structural across a large repo.
 
-The signals are free and in hand: the size of the document, how many distinct files and modules the plan names, `git ls-files | wc -l` for the repo. The floor is deliberately not the default — the unprompted review fires only on non-trivial plans, so its runs start above it. Say which tier you ran under when it is not the floor: section 5 of the response protocol.
+The signals are free and in hand: the size of the document, how many distinct files and modules the plan names, `git ls-files | wc -l` for the repo. The floor is deliberately not the default — this reviewer runs only when the user names it, and nobody asks a named reviewer for a second opinion on a trivial document, so its runs start above the floor. Say which tier you ran under when it is not the floor: section 5 of the response protocol.
 
 ### The command
 
@@ -178,4 +180,4 @@ Do **not** apply this check to a `doc-critic.md` run: there, no `file:line` at a
 
 ## 5. Handle the output
 
-Follow `${CLAUDE_PLUGIN_ROOT}/reviewers/response-protocol.md`. Read it before writing anything.
+Follow `${CLAUDE_PLUGIN_ROOT}/reviewers/response-protocol.md`. Read it before writing anything: the user, not you, chooses which points to take.

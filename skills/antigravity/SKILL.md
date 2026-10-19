@@ -1,6 +1,6 @@
 ---
 name: antigravity
-description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to Antigravity CLI (agy) as an adversarial reviewer with read-only access to the repo, then forces a point-by-point response to the critique. On a plan, use it during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Always use it when the user asks for a review, a second opinion, a critique, to "ask Antigravity" or "ask agy", to "have the plan checked", to verify or validate a plan before implementing it, to review or check a document — a specification, a proposal, an analysis, a note — before acting or deciding on it, or when the user asks for a plan and a review in the same breath — and use it as the default when the user asks for a review without naming a reviewer. Unprompted, use it on any non-trivial plan, and treat any plan with architectural consequences as non-trivial. Skip it on trivial ones — a rename, a one-line fix, a mechanical edit to a single file. Whichever way you decide on a plan, declare it in the plan document itself: a `> **Review**: …` line right after the title, saying that the review ran, or that it did not and why. Requests may come in any language.
+description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to Antigravity CLI (agy) as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Always use it when the user asks for a review, a second opinion, a critique, to "ask Antigravity" or "ask agy", to "have the plan checked", to verify or validate a plan before implementing it, or to review or check a document — a specification, a proposal, an analysis, a note — before acting or deciding on it, and use it as the default when the user asks for a review without naming a reviewer. Never start it on a plan on your own — discuss the plan with the user first. When you consider a non-trivial plan ready, ask with AskUserQuestion — "The plan is ready. Send it to the reviewer before approving it?", header "Review", options "Send to reviewer" / "Approve without review" / "Keep discussing" — and run it only on "Send to reviewer"; any plan with architectural consequences is non-trivial. A trivial plan — a rename, a one-line fix, a mechanical edit to a single file — gets no question. Either way the plan declares it right after its title: `> **Review**: not run — <reason>` for a trivial plan, and exactly `> **Review**: not run — the user chose to skip the review.` when the user declines. On a plan, the review runs during plan mode, on the plan document, before ExitPlanMode. Requests may come in any language.
 ---
 
 # Plan review — Antigravity CLI (agy)
@@ -15,63 +15,100 @@ Two rules, in order of precedence.
 
 **Asked for → always.** If the user asks for a review, names a reviewer, or asks for a plan *and* a review, run it. Do not weigh whether the plan deserves one: they asked.
 
-**Not asked for → on any non-trivial plan.** A plan with architectural consequences is non-trivial by definition. Trivial ones stay out: a rename, a one-line fix, a mechanical edit to a single file.
+**Not asked for → never on your own: the user decides.** Plan mode is where the plan is made *with* the user, so discuss it first. When you consider a non-trivial plan ready — after the discussion, not instead of it — ask with `AskUserQuestion`:
+
+- question: `The plan is ready. Send it to the reviewer before approving it?`
+- header: `Review`
+- options, single choice: `Send to reviewer` / `Approve without review` / `Keep discussing`
+
+Their answer is the confirmation. **Send to reviewer** → run this skill. **Approve without review** → write the *skipped* line below and call `ExitPlanMode`. **Keep discussing** → keep discussing, and ask again when the plan is ready again; a free-text answer under *Other* is part of that discussion.
+
+A plan with architectural consequences is non-trivial by definition. Trivial ones get no question: a rename, a one-line fix, a mechanical edit to a single file. Declare them and propose.
 
 **When, in the plan's life:** *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Not after.
 
-Plan mode blocks writes, not reads — bash runs fine there, and the plan document is the one file you may edit. So the whole *review → revise → propose* loop closes inside plan mode, and the user sees the plan and the critique together instead of having to reject a plan just to get it reviewed.
+Plan mode blocks writes, not reads — bash runs fine there, and the plan document is the one file you may edit. So the whole *review → choose → revise → propose* loop closes inside plan mode, and the user sees the plan and the critique together instead of having to reject a plan just to get it reviewed.
 
-A review is an agy call of up to half an hour in the middle of planning — the ceiling is a tier picked per document, section 3. That cost is why trivial plans are excluded, and why the first review of a conversation is gated on the fifteen-second preflight of section 1.
+A review is an agy call of up to half an hour in the middle of planning — the ceiling is a tier picked per document, section 3. That cost is why the user decides, why trivial plans get no question, and why the first review of a conversation is gated on the preflight of section 1.
 
-**Either way, the plan says so.** A decision nobody can see did not happen: a plan with no review looks exactly like a plan whose review was never mentioned. When the review runs, the trace is section 4 of the response protocol. When you skip it, write the line yourself, right after the document's `#` title, with the reason:
+**Either way, the plan says so.** A decision nobody can see did not happen: a plan with no review looks exactly like a plan whose review was never mentioned. When the review runs, the trace is section 4 of the response protocol. When it does not, write the line yourself, right after the document's `#` title — with the reason for a trivial plan, and in exactly this form when the user declined:
 
 ```
 > **Review**: not run — mechanical edit to a single file.
+> **Review**: not run — the user chose to skip the review.
 ```
 
-Keep `**Review**:` in English, and keep the line inside the **first ten lines** of the document: that is what the `ExitPlanMode` hook greps for. Finding nothing, it prepends a notice of its own — a backstop, not a substitute. It can only report that nothing was declared, never why.
+Keep `**Review**:` and `not run` in English, and keep the line inside the **first ten lines** of the document: that is what the `ExitPlanMode` hook greps for. Finding nothing, it prepends a notice of its own — a backstop, not a substitute. It can only report that nothing was declared, never why.
 
-## 1. Preflight — the tool exists, and it can read this repo
+## 1. Preflight — the tool, the reviewer agent, and a read of this repo
 
-Two checks before the **first** review of a conversation. Both are cheap, and each of them catches a failure that would otherwise only surface at the end of a long run.
+Three checks before the **first** review of a conversation. All are cheap, and each catches a failure that would otherwise only surface at the end of a long run.
 
 ### The tool
 
-Run `agy --version` first. If the command is missing, say so and offer `/plan-review:claude` instead — but do not run it yourself.
+Run `agy --version` first. If the command is missing, say so and offer `/plan-review:claude` instead — but do not run it yourself. Stamp the plan — no agy run happened, so there is no agy error to quote:
+
+```
+> **Review**: Antigravity not run — `agy` not found.
+> Plan NOT verified.
+```
+
+### The reviewer agent
+
+The reviewer runs as the agy agent `plan-reviewer`, whose tools are read-only — section 4 says why. It lives in agy's own configuration, and it must be the one this plugin ships:
+
+```bash
+AGENT="$HOME/.gemini/config/agents/plan-reviewer.md"
+SHIPPED="${CLAUDE_PLUGIN_ROOT}/reviewers/agy-plan-reviewer.md"
+if [ ! -f "$AGENT" ]; then echo "agent: MISSING"
+elif ! cmp -s "$AGENT" "$SHIPPED"; then echo "agent: OUTDATED"
+else echo "agent: ok"; fi
+```
+
+Always `$HOME`, never `~` inside quotes, where the shell does not expand it.
+
+**Missing or outdated → stop.** Do not install it yourself: agy's configuration is the user's. Hand them the command, already resolved:
+
+```bash
+mkdir -p "$HOME/.gemini/config/agents" && cp "${CLAUDE_PLUGIN_ROOT}/reviewers/agy-plan-reviewer.md" "$HOME/.gemini/config/agents/plan-reviewer.md"
+```
+
+and stamp the plan — no agy run happened, so there is no agy error to quote:
+
+```
+> **Review**: Antigravity not run — reviewer agent missing or outdated (~/.gemini/config/agents/plan-reviewer.md).
+> Plan NOT verified.
+```
 
 ### The read probe
 
 **Once per conversation and per working directory, before the first review.** Not before every review: once it has passed, say so and move on.
 
-The probe is a **dress rehearsal of the review**, and the line between what it keeps and what it drops is exactly the line between *being allowed to work* and *costing time*. Identical: the flags, `--add-dir`, the model pin, the event transport. Lowered: the prompt, the ceiling (`120s`), and the effort, which stays at the default because the probe has nothing to reason about (14 seconds measured, against 21 at high effort). Never soften the first group to make the probe pass — a rehearsal under a friendlier command line predicts nothing about the performance.
+The probe is a **dress rehearsal of the review**. Identical: the flags (`--mode plan --sandbox --agent plan-reviewer`), `--add-dir`, the model pin, the event transport. Lowered: the prompt and the ceiling (`120s`). Never soften the first group to make the probe pass — a rehearsal under a friendlier command line predicts nothing about the performance.
 
-It asks for **the root listing on purpose**, and that is the point rather than an arbitrary question. Reading a named file works everywhere with no permission; *enumerating a directory* is the operation that reaches for the shell (section 4). Since a review that cannot enumerate cannot explore — and exploring, not reading, is what this skill sells — the probe exercises the capability that actually decides the run, for fifteen seconds instead of the quarter of an hour the review would spend discovering the same thing.
-
-On a machine where the user has already granted the shell commands agy wants, it simply passes and costs those fifteen seconds. Where they have not, it fails **usefully**: the events name the command that was refused, and that is a question to forward, not a dead end.
+It asks for **the root listing on purpose**: it is the reviewer's first act of exploration, done with the same tools the review will use. In about half a minute — 26 seconds measured with `gemini-4-argon-high` — it settles what a review would otherwise discover at the end of a quarter of an hour: credentials still valid, model pin still real, workspace attached, and the agent able to reach the root.
 
 ```bash
 PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
 cd "$PROJECT" || exit 1
 OUT="${TMPDIR:-/tmp}/plan-review-probe.json"
 ERR="${TMPDIR:-/tmp}/plan-review-probe.err"
-REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-3.1-pro-high}"
+REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-4-argon-high}"
 PROBE="List the names of the files and directories at the root of the workspace, one per line, nothing else — no commentary, no code fences, no plan, no subagent."
 
 echo "=== the real root ==="; ls -A
-agy --mode plan --sandbox --add-dir "$PROJECT" --model "$REVIEW_MODEL" --print-timeout 120s --output-format stream-json -p "$PROBE" </dev/null >"$OUT" 2>"$ERR"
+agy --mode plan --sandbox --agent plan-reviewer --add-dir "$PROJECT" --model "$REVIEW_MODEL" --print-timeout 120s --output-format stream-json -p "$PROBE" </dev/null >"$OUT" 2>"$ERR"
 echo "=== exit $? ==="
 jq -r 'select(.event=="result") | "status=\(.result.status)  empty=\(.result.response=="")", .result.response' "$OUT" 2>/dev/null
-echo "=== denied, if any ==="
-jq -r 'select(.event=="step_update") | .step_update | select(.state=="ERROR") | "tool=\(.tool_name)  command=\(.tool_info.parameters.CommandLine // "—")"' "$OUT" 2>/dev/null
+echo "=== refused, if any ==="
+jq -r 'select(.event=="step_update") | .step_update | select(.state=="ERROR") | "tool=\(.tool_name)  target=\(.tool_info.parameters | (.AbsolutePath // .DirectoryPath // .SearchPath // .SearchDirectory // .CommandLine // "—"))  reason=\((.tool_info.error.message // "")[0:200])"' "$OUT" 2>/dev/null
 jq -r 'select(.event=="init") | "conversation_id=\(.conversation_id)"' "$OUT" 2>/dev/null
 echo "=== stderr ==="; head -c 600 "$ERR"
 ```
 
-About fifteen seconds, and in that single turn it settles what otherwise fails at the end of a quarter-hour run: credentials still valid, model pin still real, workspace attached, and the shell question answered one way or the other.
-
 **Reading the result.** `ls -A` prints the real root for free — compare against it. It **passes** when the names are the ones of *this* directory, including at least one a model could not have guessed. It **fails** on an empty `response`, on prose instead of names, or on a plausible generic project — `src/`, `package.json` — that is not this one.
 
-**If it fails, the review does not run.** The events say why, and a denied tool call is the common case: hand the user the request as section 5 prescribes — the exact command agy wanted, the two ways to allow it, and the offer to resume. Write the *failed* stamp of section 4 of the response protocol onto the plan, naming the probe as the cause, and stop. Do not re-run it, and do not reach for the other reviewer on your own.
+**If it fails, the review does not run.** The events and stderr say why — section 5 lists the causes and their remedies. Write the *failed* stamp of section 4 of the response protocol onto the plan, naming the probe as the cause, and stop. Do not re-run it, and do not reach for the other reviewer on your own.
 
 **The probe is not a review.** No critic, no verdict, and it never counts toward files read.
 
@@ -124,12 +161,12 @@ Three tiers. agy caps nothing on turns, so here the tier is one number; the Clau
 Pick one as **a judgement you state, not a threshold you count**:
 
 - **short** — a short, contained document: a plan over a handful of files in one component, a note of two pages. This is the **floor, not the default**.
-- **standard** — the ordinary case for anything the skill fires on by itself. A plan with architectural consequences, several modules touched, a document past ~10 KB, a repo of some hundreds of files. **In doubt between two tiers, take the higher one.**
+- **standard** — the ordinary case for a plan the user sends to review. A plan with architectural consequences, several modules touched, a document past ~10 KB, a repo of some hundreds of files. **In doubt between two tiers, take the higher one.**
 - **deep** — the user asked for a review in depth; or a previous run hit the ceiling; or the plan rewrites something structural across a large repo.
 
 Every signal is free and in hand before the run: the size of the document (you are reading it anyway, to inline it), how many distinct files and modules the plan names, and `git ls-files | wc -l` for the size of the repo. Nothing here is estimated by feel.
 
-**That the floor is not the default follows from section 0, not from taste.** The unprompted review fires *only* on non-trivial plans, and non-trivial is defined there as a plan with architectural consequences — so those runs are born above the floor. Keeping 5 minutes as the default would tune the ceiling for the one case section 0 has just finished excluding.
+**That the floor is not the default follows from section 0, not from taste.** The review runs only on non-trivial plans — trivial ones skip the question — and non-trivial is defined there as a plan with architectural consequences, so those runs are born above the floor. Keeping 5 minutes as the default would tune the ceiling for the one case section 0 has just finished excluding.
 
 Say which tier you ran under when it is not the floor: the rule is section 5 of the response protocol.
 
@@ -141,7 +178,7 @@ cd "$PROJECT" || exit 1
 PLAN="<PLAN_PATH>"
 OUT="${TMPDIR:-/tmp}/plan-review-antigravity.json"
 ERR="${TMPDIR:-/tmp}/plan-review-antigravity.err"
-REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-3.1-pro-high}"
+REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-4-argon-high}"
 # The tier chosen above goes here. Seconds, bare integer, no unit — the "s" is appended below.
 REVIEW_TIMEOUT="${PLAN_REVIEW_TIMEOUT:-900}"
 
@@ -161,17 +198,17 @@ $FRAMING
 $(cat "$PLAN")
 --- END DOCUMENT UNDER REVIEW ---"
 
-# No --dangerously-skip-permissions here, on purpose: see the constraint below and section 4.
-agy --mode plan --sandbox --effort high --add-dir "$PROJECT" --model "$REVIEW_MODEL" --print-timeout "${REVIEW_TIMEOUT}s" --output-format stream-json -p "$PROMPT" <"/dev/null" >"$OUT" 2>"$ERR"
+# No --dangerously-skip-permissions here, on purpose: see the constraints below and section 4.
+agy --mode plan --sandbox --agent plan-reviewer --add-dir "$PROJECT" --model "$REVIEW_MODEL" --print-timeout "${REVIEW_TIMEOUT}s" --output-format stream-json -p "$PROMPT" <"/dev/null" >"$OUT" 2>"$ERR"
 RC=$?
 
 echo "=== exit $RC ==="
 echo "=== run ==="
 jq -r 'select(.event=="result") | "status=\(.result.status)  turns=\(.result.num_turns)  empty_response=\(.result.response=="")"' "$OUT" 2>/dev/null \
   || { echo "!! output is not a JSON event stream, raw:"; head -c 1000 "$OUT"; }
-echo "=== tool calls that were denied, if any ==="
-jq -r 'select(.event=="step_update") | .step_update | select(.state=="ERROR") | "tool=\(.tool_name)\ncommand=\(.tool_info.parameters.CommandLine // "—")\nreason=\((.tool_info.error.message // "")[0:200])"' "$OUT" 2>/dev/null
-echo "=== conversation id — to resume rather than restart ==="
+echo "=== tool calls that were refused, if any ==="
+jq -r 'select(.event=="step_update") | .step_update | select(.state=="ERROR") | "tool=\(.tool_name)\ntarget=\(.tool_info.parameters | (.AbsolutePath // .DirectoryPath // .SearchPath // .SearchDirectory // .CommandLine // "—"))\nreason=\((.tool_info.error.message // "")[0:200])"' "$OUT" 2>/dev/null
+echo "=== conversation id — to resume an interrupted review ==="
 jq -r 'select(.event=="init") | .conversation_id' "$OUT" 2>/dev/null
 echo "=== the critique ==="
 jq -r 'select(.event=="result") | .result.response // empty' "$OUT" 2>/dev/null
@@ -182,10 +219,11 @@ head -c 1000 "$ERR"
 Constraints:
 
 - **Flag order matters.** `-p` takes the next argument as its prompt, so every other flag goes *before* `-p`, and the prompt stays glued to it. `agy -p --mode plan "..."` makes `--mode` the prompt and silently drops the real one — agy does warn about this, which is why stderr is captured rather than discarded.
-- **`--add-dir` is not optional.** `cd` does nothing for agy: it does not take the working directory as its workspace. Asked to list its workspace without the flag, it answers `NO WORKSPACE`. Without a file tree the run dies on an auto-denied tool — and the tool it names is **`read_file`**, measured: with no workspace it is the *reading* that gets denied, which is why the model reaches for the shell rather than the other way round. Quote the path — repositories have spaces in them.
-- **Three flags, and they are one unit.** `--mode plan` is agy's read-only execution mode, `--sandbox` adds terminal restrictions, `--effort high` is the quality lever after the model pin. Do not drop one and keep the rest.
-- **`--dangerously-skip-permissions` is deliberately absent, and adding it is not yours to decide.** It removes the whole class of failure below — with it agy never has to ask, so it explores freely — and that is exactly why it is tempting. Two measured reasons it is not the default: the host's own permission classifier refuses to launch a command carrying it (`[Create Unsafe Agents]`), which is the most common way this skill fails to start at all; and it auto-approves *every* tool, where the denial below identifies the one command actually wanted. It stays available as the second remedy in section 5, offered to the user, never chosen for them.
-- **`--output-format stream-json` is what makes the failure legible**, and it is why this block ends in `jq` rather than `cat`. A denied tool call, an artefact written instead of an answer, a subagent the run never waits for — all three used to arrive as *plausible text or silence* and had to be told apart by reading stderr. As events they are one query each: `result.status` with an empty `result.response` is the silent death, a `step_update` in `state:"ERROR"` carries the tool **and the exact command line** that was refused, and `init.conversation_id` is what lets a granted permission resume the same review instead of paying for it twice. The critique itself lives in `.result.response`.
+- **`--add-dir` is not optional.** `cd` does nothing for agy: it does not take the working directory as its workspace. Asked to list its workspace without the flag, it answers `NO WORKSPACE`. Without a file tree even reading is refused — the tool it names is **`read_file`**, measured. Quote the path — repositories have spaces in them.
+- **Three flags, and they are one unit.** `--mode plan` is agy's read-only execution mode, `--sandbox` adds terminal restrictions, and `--agent plan-reviewer` is the reviewer whose tools only read (section 4). Do not drop one and keep the rest.
+- **No `--effort`.** The reasoning level is in the model's name (`-high`), and since agy 1.3.4 a name that carries it rejects the flag: `--effort is not supported for model …`.
+- **`--dangerously-skip-permissions` stays out.** With the agent it would add nothing — the reviewer has no shell left to approve — and it would auto-approve every tool, writes included, for a run that is meant to read. Claude Code's own classifier refuses to launch a command that carries it anyway (README, *Known traps*).
+- **`--output-format stream-json` is what makes the failure legible**, and it is why this block ends in `jq` rather than `cat`. A refused read, an artefact written instead of an answer, a subagent the run never waits for — all three used to arrive as *plausible text or silence* and had to be told apart by reading stderr. As events they are one query each: an empty `result.response` is a failed run, a `step_update` in `state:"ERROR"` carries the tool **and its target** — `AbsolutePath` for `view_file`, `DirectoryPath` for `list_dir`, `SearchPath` for `grep_search`, `SearchDirectory` for `find_by_name` — and `init.conversation_id` is what lets an interrupted review resume instead of paying for it twice. The critique itself lives in `.result.response`.
 - **`CRITIC` and `FRAMING` are one unit.** The block above carries the plan-critic pair. For a document that is not about this code, both lines change together:
 
   ```bash
@@ -194,88 +232,64 @@ Constraints:
   ```
 
   Swapping the critic and leaving the plan-critic framing in place is the one mistake that costs the whole run: *«verify every claim it makes by reading this repository yourself»* is an order to find code behind a text that has none, and the model obeys it by inventing references. The reverse — doc framing with `plan-critic.md` — quietly drops the verification the plan needed.
-- **The Output Delivery Constraint is load-bearing, and each clause was bought with a failed run.** Without the first, agy answers a review request with a *plan for reviewing* and waits for an approval headless can never give. Without the second, it writes the critique to an artefact file and returns a one-line pointer, or hands the work to a subagent the CLI kills on exit (`terminating 1 background task(s)`) — a promise instead of a review.
-- **It states facts about the environment, and it does not dictate method.** That line is the one to hold. *This run has no channel to answer you*, *a background task dies when the turn ends* — true, unknowable to agy, and saying so is not preparing its context. *Use `list_dir` rather than the shell*, or *the shell is unavailable to you*, are the other kind: they tell the reviewer how to work, which is its business and this plugin's central rule. Earlier drafts carried both and they are gone. Measured, they did not even work — agy reached for `run_command` regardless — and worse, they pre-empt the very choice the failure mode below exists to forward to the user.
-- **The model is pinned to a Pro tier** because agy's own default is a Flash tier: fine for cost, weak as an adversary. Override with `PLAN_REVIEW_MODEL`, and see the failure mode below for when the pin goes stale. `agy models` lists what is available — that list also carries Claude and GPT-OSS models, so agy is a multi-vendor transport and a third opinion is a `--model` flag rather than another skill.
-- **`--print-timeout` carries the tier, and the tier is ours.** agy's own default is `0s` — it waits for the turn to complete, with no limit at all — so the ceiling is a choice this skill makes, not a constraint it inherits. This constraint used to say *«agy's own timeout (default 5m)»*, and a limit you believe you inherited is a limit you never reconsider. `PLAN_REVIEW_TIMEOUT` overrides it, in **seconds as a bare integer**: the `s` is appended by the command, so `PLAN_REVIEW_TIMEOUT=900s` builds `900ss` and agy rejects it. Being agy's own flag it needs no `timeout`/`gtimeout` wrapper.
+- **The Output Delivery Constraint is load-bearing, and each clause was bought with a failed run.** Without the first, agy answers a review request with a *plan for reviewing* and waits for an approval headless can never give. Without the second, it writes the critique to an artefact file and returns a one-line pointer, or hands the work to a subagent the CLI kills on exit (`terminating 1 background task(s)`) — a promise instead of a review. `plan-reviewer` has neither `write_to_file` nor `invoke_subagent`, so the second clause no longer guards an action. Keep it anyway: it is what asks for the critique verbatim in the response, rather than a summary or a sentence about where the critique would be.
+- **It states facts about the environment, and it does not dictate method.** That line is the one to hold. *This run has no channel to answer you*, *a background task dies when the turn ends* — true, unknowable to agy, and saying so is not preparing its context. The agent's tool list, and the three sentences of its body, are of the same kind: they describe the room, not how to work in it. *Use `list_dir` rather than the shell*, or *read these files first*, are the other kind: they tell the reviewer how to work, which is its business and this plugin's central rule.
+- **The model is pinned to `gemini-4-argon-high`.** It is the newest Gemini tier `agy models` lists (seen on agy 1.4.0), after the Pro tier left the list in 1.3.4 and `gemini-3.8-flash-high` stood in for it. It is a different vendor's model from yours, which is the point. Override with `PLAN_REVIEW_MODEL` — `gemini-3.8-flash-high`, the previous pin, is the fallback — and see the failure mode below for when the pin goes stale. `agy models` lists what is available — that list also carries Claude and GPT-OSS models, so agy is a multi-vendor transport and a third opinion is a `--model` flag rather than another skill.
+- **`--print-timeout` carries the tier, and the tier is ours.** agy's own default is `0s` — it waits for the turn to complete, with no limit at all — so the ceiling is a choice this skill makes, not a constraint it inherits. `PLAN_REVIEW_TIMEOUT` overrides it, in **seconds as a bare integer**: the `s` is appended by the command, so `PLAN_REVIEW_TIMEOUT=900s` builds `900ss` and agy rejects it. Being agy's own flag it needs no `timeout`/`gtimeout` wrapper.
 - **Inlining is safe on size.** A 17 KB plan against a 1 MB `ARG_MAX` is under 2%. A document would have to reach hundreds of KB to matter; past that size the document is the problem.
-- **stderr stays captured even though the events carry the diagnosis.** It is where the one-line summary of an auto-denial appears, and where a mistyped flag shows up before any event is emitted.
-- Requires cached credentials from a prior interactive `agy` login on this machine. Nothing else: no folder to trust, no permission to pre-grant — section 4.
+- **stderr stays captured even though the events carry the diagnosis.** It is where the one-line summary of a refusal appears, and where a mistyped flag shows up before any event is emitted.
+- Requires cached credentials from a prior interactive `agy` login on this machine, and the `plan-reviewer` agent of section 1. Nothing else: no folder to trust, no command to pre-grant.
 
-## 4. What agy can do without asking, and what it cannot
+## 4. Why the reviewer runs as `plan-reviewer`
 
-Two facts decide the shape of this skill, and both are measured rather than reasoned.
+Every fact here was measured on this repo, except what is cited from agy's own changelog.
 
-**The workspace is not the working directory.** Headless agy has no workspace unless you give it one: `cd` is invisible to it, and asked to list its workspace without `--add-dir` it answers `NO WORKSPACE`. In that state even reading is refused — the tool named in the denial is `read_file`, because with no file tree there is nothing to read. `--add-dir` removes this cause entirely.
+**The workspace is not the working directory.** Headless agy has no workspace unless you give it one: `cd` is invisible to it, and asked to list its workspace without `--add-dir` it answers `NO WORKSPACE`. In that state even reading is refused. `--add-dir` removes this cause entirely.
 
-**With a workspace, reading is free and exploring is not.** Reading a named file needs no permission at all: measured repeatedly, in trusted and untrusted folders alike, in a few seconds. *Enumerating a directory* is what reaches for the shell — agy has `list_dir` and uses `run_command` anyway — and `run_command` cannot be approved in headless, because there is nobody to ask. The run then ends.
+**With agy's default agent, exploring reaches for the shell, and headless cannot approve it.** Reading a named file needs no permission, but to look around agy runs commands — since 1.2.7 its default agent has no tool that lists a directory — and headless has nobody to ask: the call is refused and, more often than not, the run ends with an empty response and exit 0. Granting one command prefix at a time never converges — asked only to list the root, the probe was refused four times on four different commands: `python3 -c "…os.listdir('.')…"`, `git status && git branch`, `ps aux`, `claude plugin validate .`.
 
-That is not a defect to work around; it is a permission agy is entitled to ask for, and section 5 forwards the question to the person who can answer it. Once they have, it stays answered: the grant persists in agy's own settings, so the asking is a one-off per command, per machine — not a toll on every review.
+**The agent's `tools` list replaces the default toolset.** `plan-reviewer` lists `view_file`, `list_dir`, `grep_search` and `find_by_name`. It **adds** the last three: agy 1.2.7 retired them from the default agent, keeping them for custom agents that name them in `tools`. And it **leaves out** the rest — `run_command`, `write_to_file`, `replace_file_content`, `invoke_subagent` — so there is no shell to ask for. Asked to name its tools, the default agent lists `run_command`, `write_to_file`, `invoke_subagent` and others but no listing tool; `plan-reviewer` lists its four and `manage_task`. Asked outright to run `ls -A`, it answers `NO SHELL TOOL`. A full review then ran in 257 seconds, read 13 files, and met no refusal. It is the same move as `--allowedTools "Read,Grep,Glob"` on the Claude side: the environment is set, the reviewer is told nothing about how to work.
 
-Judge the run by its **output**, never by its exit code, and now not by emptiness alone either: the envelope of a denied run reports `status: SUCCESS` with an empty `response`, and the process exits 0. Success is what this failure looks like from the outside.
+**Do not set `excludeDefaultComponents: true` on the agent.** It also drops the prompt section that tells the agent where its workspace is: the agent guessed `/workspace`, and the read was refused.
+
+**What is left: reads outside the workspace.** A plan that names `~/.claude/…` or `~/.gemini/…` draws the reviewer there, and the read is refused — the action is `read_file`, whatever tool asked. Sometimes the run ends empty, sometimes it records the refusal and carries on to a full critique: both measured. Two things keep it rare: `plan-critic.md` limits *open it* to the repository and sends outside paths to *What I could not verify*, and the agent's body states the refusal as a fact of its environment.
 
 ### Three remedies that do not work
 
-Each was measured in a folder where the denial reproduces every time. Do not spend a run rediscovering them:
+Measured against the shell refusals, before the agent existed. Do not spend a run rediscovering them:
 
-- **Trusting the workspace.** agy does ask interactively and keeps a `trustedWorkspaces` list, so this is the first idea everyone has. It changes nothing here: the same folder, trusted, fails identically — while an untrusted folder elsewhere listed its root without complaint. Trust is an interactive gate, not a headless permission.
-- **Naming the tool.** agy's own reasoning has stated there is «no `list_directory` tool» while `list_dir` sat in the tool list it had just been given. Naming the tools it already has does not stop it reaching for `run_command`.
-- **Dropping `--mode plan`.** The changelog grants workspace-scoped read *and list* access under the default review mode, which reads like the answer. Measured, the denial is identical with the flag and without it.
-
-And the tool named in a denial is a symptom, not the missing permission in general: it is whichever call tripped first, and agy changes its mind between identical runs — `ls`, then `find`, then `python3 -c "import os; print(os.listdir('.'))"` for the very same task. That matters for what you tell the user, and section 5 says how.
-
-### Why the command carries no skip-permissions flag
-
-`--dangerously-skip-permissions` would remove this whole class: with it agy never has to ask, and it explores freely. It is absent for two measured reasons, not out of caution as a pose.
-
-The first is that it frequently prevents the review from running **at all**: Claude Code's own permission classifier refuses to launch a command that carries it, and the block arrives before agy is ever reached. The second is that it grants everything for the run, where a denial tells you the *one* command that was actually wanted — which is the thing the user can act on.
-
-**What it costs to do without it, said plainly.** A review can still die: on this repo, the same review survived once at 253 seconds with 8 files read and died the next time at 31 seconds with zero bytes. What changed is not the odds but the aftermath. The event stream names the exact command that was refused, and `init.conversation_id` lets a granted permission **resume that same review** instead of paying for it twice. A failure that is precise and resumable is a different animal from a silent one.
-
-The flag remains available as the second remedy in section 5 — offered to the user with its trade, never chosen for them. And you still do not inspect, repair or write agy's configuration, nor go looking for where it lives; the same holds for the host's settings, which Claude Code will refuse to let you edit anyway (`[Auto-Mode Bypass]`), and is right to.
+- **Trusting the workspace.** agy keeps a `trustedWorkspaces` list; the same folder, trusted, failed identically. Trust is an interactive gate, not a headless permission.
+- **Naming the tool.** Telling agy to use `list_dir` did not stop it reaching for `run_command` — it could not: the default agent has no `list_dir`. Naming it in the agent's `tools` did.
+- **Dropping `--mode plan`.** The refusal was identical with the flag and without it.
 
 ## 5. Failure modes
 
 Follow section 0 of the response protocol: report the error, give the remedy, **do not run another reviewer CLI on your own**.
 
-**A tool was denied — the one you will actually meet.** The signature is `status: SUCCESS` with an empty `response`, exit 0, and at least one `step_update` in `state: "ERROR"` whose message begins `permission check failed for command`. stderr carries the same thing in one line. agy asked for a permission, headless had nobody to ask, and the run ended.
+**Judge the run by its `VERDICT`, not by its exit code or its `status`.** A run that ends empty with exit 0 and `status: SUCCESS` has failed; a resumed run has closed with `status: ERROR` and a whole critique in its response. A response with a `VERDICT:` line is a review; anything else is not.
 
-**Forward the request; do not answer it for them.** The events give you what the user needs to decide, so report it in their language and in this shape:
+**The reviewer agent is missing or outdated.** The preflight of section 1 catches it before any run. If a run gets there anyway, agy 1.3.4 exits 1 on an unknown `--agent` and lists the agents it has. Hand the user the `cp` command of section 1, stamp the plan in that section's form, and stop.
 
-- **what agy wanted to run** — the exact string in `tool_info.parameters.CommandLine`, quoted verbatim. Not "a tool was denied": *`find . -maxdepth 1 -mindepth 1 | sed 's|^./||'`*.
-- **what it was trying to do** — from the step, usually: enumerate the workspace. Reading files was never the problem.
-- **the two ways forward**, and they are the user's to weigh:
-  1. **Grant it to agy**, which is where the permission belongs. Interactively — `agy` in that folder, the same request, and the dialog offers *«always allow for commands that start with `X` (Persist to settings.json)»* — or directly in `~/.gemini/antigravity-cli/settings.json`, where that choice lands as one line:
+**A read was refused.** The signature is a `step_update` in `state: "ERROR"` whose message begins `permission check failed for read_file`, and `result.denied_actions` listing `read_file`; the filter above prints the target. If the run carried on and a critique came back, it is a review: report the refused path with it. If the run ended empty, it failed. Report in the user's language:
 
-     ```json
-     "permissions": { "allow": ["command(ls)"] }
-     ```
+- **what was refused** — the target, verbatim, and the reason line;
+- **the ways forward**, which are the user's:
+  1. **re-run with one more `--add-dir`** for that directory — measured to work. It is a **new run**, not a resume: the workspace is fixed when the run starts, so `--conversation` cannot widen it;
+  2. a narrow `read_file(<path>)` rule under `permissions.allow` in `~/.gemini/antigravity-cli/settings.json` — the syntax is agy's documented one, and the refusal itself names it, but that an *allow* unblocks the read has not been measured here.
 
-     Say the catch honestly: **the grant is per command prefix**, and agy picks a different one between identical runs — `ls`, then `cat`, then `find`, then `python3`. Measured, the set that carried a full review through was `ls`, `cat`, `head`, `tail`, `wc`, `grep`: six read-only commands, granted once, after which a 13 KB plan was reviewed end to end with no denial at all. Worth adding: `find` is the one it still reaches for occasionally, and it is **not** in that set on purpose — `find -exec` runs arbitrary commands, which is a different thing from reading. That is the user's call to make, not a detail to smuggle past them.
-  2. **Re-run with `--dangerously-skip-permissions`**, which approves every tool for that one run, bounded by `--mode plan` and `--sandbox`. Say its catch too: in auto mode Claude Code refuses to launch that command outright, and lifting that needs a rule only they can write (below).
-- **that the work is not lost.** Quote the `conversation_id` and offer to resume with `--conversation "<id>"` once the permission exists, rather than starting the review again. Measured: the resumed run picks the review up where it stopped, keeps what it had already read, and carries on — *«The permission you needed has been granted. Continue the review now and output the complete critique as your final response text.»* is enough of a prompt, since the critic and the document are already in that conversation.
+  Never offer to open `~/.gemini` whole: it holds agy's settings and credentials, and agy refuses reads of its own settings anyway, measured.
 
-Then **stop**. Do not grant anything on their behalf, do not re-run, do not switch reviewer. When this fires on the **probe** it costs fifteen seconds instead of a quarter of an hour, which is the whole reason the probe exists — and the probe carries the review's own flags precisely so that it meets this first.
+Then **stop**. Do not grant anything on their behalf, do not re-run, do not switch reviewer.
 
-**Blocked by the host's classifier** — only reachable when the user has chosen remedy 2 above. The Bash call never runs: Claude Code refuses it with `Permission for this action was denied by the Claude Code auto mode classifier. Reason: [Create Unsafe Agents]`, because the command line carries `--dangerously-skip-permissions`. Nothing reached agy, so there is no output to judge and no CLI error to quote.
+**A command was refused** — `target` is a command line. The run did not use the agent: check that `--agent plan-reviewer` is on the command line, and fix the command rather than asking for a grant.
 
-The remedy is one line, once per machine, in `~/.claude/settings.json`:
+**The run was interrupted** — stderr says `There was a network issue connecting to the server`, with an `AGY_ERROR` line marked `retryable`, and the process exits 3. Report it and offer to **resume** the same review with `--conversation "<id>"` and the same flags, rather than start again. Measured: a review cut by a network error resumed, kept what it had read, and finished. *«The run was interrupted by a network error. Continue the review now and output the complete critique as your final response text.»* is enough of a prompt, since the critic and the document are already in that conversation. Offer; do not resume on your own.
 
-```json
-"permissions": { "allow": ["Bash(agy --mode plan --sandbox --dangerously-skip-permissions:*)"] }
-```
+**The critique came back as a pointer, a plan, or a promise** — three shapes of the same thing: a `response` that is short, plausible and not a review. It says the critique is in `review.md` under agy's own working directory; or it offers a *plan* for reviewing and waits for an approval nobody can give; or it announces that a subagent will report back. All three **pass the empty-output check** in section 0 of the response protocol — they are not empty. Before the agent, the first and the third were real actions — a `write_to_file` or `invoke_subagent` step in the events, and `terminating 1 background task(s) on exit` on stderr for the subagent. `plan-reviewer` has neither tool, so now they can only be claimed, and no step shows them: the sign left is a `response` with no `VERDICT:` line in it.
 
-In auto mode an allow rule that matches is evaluated *before* the classifier, so the call stops being reviewed. What it grants is exactly that command shape: auto-approval of **agy's own tools** inside agy's plan-and-sandbox mode, nothing about your tools. The rule matches a prefix, so the flags must stay in that order on one line.
+Never report that sentence as if it were the review, and do not go read the file it names. The fix is the Output Delivery Constraint. If it is in the prompt and this still happens, say so and stop.
 
-**You cannot add it for them.** Writing a permission rule from inside a session is refused in its own right, `Reason: [Auto-Mode Bypass]`, and an agent that grants itself permissions is precisely what that check exists for. Hand them the line.
-
-**Never route around the block by hiding the flag** — building the command through a variable, or moving it into a script so the classifier cannot read the string. It would work, and it defeats the intent of a check the user installed. The remedy is consent, not concealment.
-
-**The critique came back as a pointer, a plan, or a promise** — three shapes of the same thing: a `response` that is short, plausible and not a review. It says the critique is in `review.md` under agy's own working directory; or it offers a *plan* for reviewing and waits for an approval nobody can give; or it announces that a subagent will report back, while stderr says `terminating 1 background task(s) on exit`. All three **pass the empty-output check** in section 0 of the response protocol — they are not empty — and all three are visible in the events: a `write_to_file` or `invoke_subagent` step, or a `response` with no `VERDICT:` line in it.
-
-Never report that sentence as if it were the review, and do not go read the file it names. The fix is the Output Delivery Constraint, whose four lines exist one per shape. If all four are in the prompt and this still happens, say so and stop.
-
-**Unknown model** — stderr names the rejected model. The pin can go stale: the Pro line sits at 3.1 while the Flash tiers are already at 3.7, so a future rename makes the whole skill fail instead of degrading it. Run `agy models`, then either `PLAN_REVIEW_MODEL=<one of them>` or drop the flag. As with `--max-turns` on the Claude side: abandon the flag, not the review.
+**Unknown model** — stderr names the rejected model. The pin goes stale: agy 1.3.4 dropped `gemini-3.1-pro-high` from `agy models`, and the same release rejects `--effort` with a model name that carries the level (`invalid model selection (--model "…-high" --effort "high")`). Run `agy models`, then either `PLAN_REVIEW_MODEL=<one of them>` or drop the flag. As with `--max-turns` on the Claude side: abandon the flag, not the review.
 
 **Not logged in** — stderr starts with `Authentication required. Please visit the URL to log in:` followed by a long OAuth URL. Do not print that URL and do not try to complete the flow. Tell the user to log in once, interactively, in another terminal:
 
@@ -287,9 +301,9 @@ then complete the browser login and quit. Say the review will work from then on,
 
 **Prompt swallowed by a flag** — stderr contains `took "--…" as its prompt`. That is a bug in the command line, not in the environment: move the flag before `-p` and re-run once.
 
-**Hit the ceiling** — agy stops at `--print-timeout`, and in the event stream the signature is precise: `init` and `step_update` events arrive but **no `result` event ever does**. That is what distinguishes it from a denial, which does produce a `result`, with `SUCCESS` and an empty response. Section 0 of the response protocol already counts a run killed by the timeout as a failed one. **Hitting the ceiling means the tier was misjudged, not that the reviewer failed**, so report it as that: name the tier it ran under, name the next one with its number (`300s` → `900s` → `1800s`), and offer it. **Do not re-run on your own** — the ban is the response protocol's, and a second run costs money and answers a question the user did not ask. The way not to arrive here is in section 3: err high on the first tier.
+**Hit the ceiling** — agy stops at `--print-timeout`, and in the event stream the signature is precise: `init` and `step_update` events arrive but **no `result` event ever does**. That is what distinguishes it from a refusal, which does produce a `result`. Section 0 of the response protocol already counts a run killed by the timeout as a failed one. **Hitting the ceiling means the tier was misjudged, not that the reviewer failed**, so report it as that: name the tier it ran under, name the next one with its number (`300s` → `900s` → `1800s`), and offer it. **Do not re-run on your own** — the ban is the response protocol's, and a second run costs money and answers a question the user did not ask. The way not to arrive here is in section 3: err high on the first tier.
 
-**An empty `response` with exit 0** — treat as a failed run, never as "no critique found". Work through the events before saying anything: a denied `step_update` names the cause outright, a missing `result` event means the ceiling, and neither present means read stderr. Only if all three come up empty is `--log-file "${TMPDIR:-/tmp}/agy-review.log"` worth one re-run, grepping it for `permission|grant|project`. Adding the flag for diagnosis is not a retry around the problem — report what it says, then stop.
+**An empty `response` with exit 0** — treat as a failed run, never as "no critique found". Work through the events before saying anything: a refused step names its target, a missing `result` event means the ceiling, and neither present means read stderr. Only if all three come up empty is `--log-file "${TMPDIR:-/tmp}/agy-review.log"` worth one re-run, grepping it for `permission|grant|project`. Adding the flag for diagnosis is not a retry around the problem — report what it says, then stop.
 
 **A critique that never cites the code** — **under `plan-critic.md` only.** With the document inline, a lazy reviewer can critique the text alone. If nothing in the critique names a `file:line` the document itself does not mention, it did not verify anything. Say so rather than passing off a text review as a code-grounded one.
 
@@ -299,4 +313,4 @@ A critique that *did* come back but lists few files read is **not** a failure ca
 
 ## 6. Handle the output
 
-Follow `${CLAUDE_PLUGIN_ROOT}/reviewers/response-protocol.md`. Read it before writing anything.
+Follow `${CLAUDE_PLUGIN_ROOT}/reviewers/response-protocol.md`. Read it before writing anything: the user, not you, chooses which points to take.

@@ -14,7 +14,7 @@ Write your entire review in the same language as the document under review. If t
 
 Before writing any critique, verify against the code:
 
-1. **Does every file and symbol the plan names actually exist?** Open it. A plan citing `AuthService.validateToken()` when the method is named differently, lives in another module, or does not exist, is built on an imagined codebase.
+1. **Does every file and symbol the plan names actually exist?** Open it, when it lives in this repository. A plan citing `AuthService.validateToken()` when the method is named differently, lives in another module, or does not exist, is built on an imagined codebase. A path outside the repository — a user's home directory, a global configuration, another project — is not yours to open: list it under *What I could not verify*.
 
 2. **Does the code do what the plan assumes?** Do not stop at the file existing. If the plan says "I extend the existing middleware", read the middleware and check that it is extensible in the way described.
 

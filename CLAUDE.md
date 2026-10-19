@@ -21,12 +21,17 @@ The plugin's *output* follows the language of the conversation or the document. 
 - **`CRITIC` and `FRAMING`.** One unit in both bash blocks. Swapping the critic without the framing line makes the reviewer invent `file:line` references.
 - **The two critics.** `reviewers/plan-critic.md` and `reviewers/doc-critic.md` keep identical severity levels and pass bar (`FAIL` iff at least one `[BLOCKING]`). They differ only in what counts as evidence and in what `[BLOCKING]` means.
 - **The tier.** On the Claude side the timeout and `--max-turns` are one unit; raising one alone buys nothing.
-- **The trace.** The `> **Review**:` stamp is defined in `reviewers/response-protocol.md` section 4, the skip rule in the `description` of `skills/antigravity`, the backstop in `hooks/save-plan.sh`.
+- **The trace.** The `> **Review**:` stamp is defined in `reviewers/response-protocol.md` section 4, the *not run* lines — trivial plan, user declined — in the `description` of `skills/antigravity`, the backstop in `hooks/save-plan.sh`. The not-started stamps — `agy` not found, agent missing or outdated — appear in both section 4 and the skill's section 1.
+- **The question.** The text that asks whether to review a ready plan — question, header, three options — is written in the `description` of `skills/antigravity` and again in its section 0. The `description` is the copy that counts: it is the only text in context when the skill never loads.
+- **The reviewer agent.** `reviewers/agy-plan-reviewer.md` and the copy the user installs in `~/.gemini/config/agents/plan-reviewer.md`. The preflight compares them byte for byte, so any edit to the shipped file asks every user to copy it again — say so in the commit.
+- **The model pin.** `gemini-4-argon-high` in both bash blocks of `skills/antigravity`, in the README and in the stamp examples of the response protocol.
 
 ## Things this repo does not do
 
 - No `--dangerously-skip-permissions` in the agy command, and never hidden in a wrapper script to get it past the classifier.
-- No instructions to the reviewer on which tools to use. Facts about its environment are fine; how to work is not.
+- No instructions to the reviewer on which tools to use. Facts about its environment are fine; how to work is not. The agy agent's `tools` list sets the environment — it adds the read tools agy's default agent lacks and leaves out the shell, the same move as `--allowedTools` on the Claude side — and its body states facts only.
+- No installing or editing agy's configuration from a session, the reviewer agent included: the skill hands the user the `cp` command and stops.
+- No review started on a plan without the user saying so, unless they asked for one outright. Claude proposes on each point; the user chooses which points to take.
 - No context prepared for the reviewer — no summaries, extracted snippets or curated file lists. The document under review travels inline; the reviewer opens the repo itself.
 - No automatic retry and no fallback to the other reviewer on failure. Report the error, offer the alternative in one line, wait.
 - Nothing inside `.claude-plugin/` except the two manifests.
