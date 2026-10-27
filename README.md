@@ -8,7 +8,7 @@ It runs when you decide. Claude makes the plan with you, and when the plan is re
 
 ## How it works
 
-1. Write a plan in plan mode, and discuss it with Claude.
+1. Write a plan in plan mode — or, outside it, accept Claude's proposal to enter it — and discuss it with Claude.
 2. **When Claude considers the plan ready**, it asks: *The plan is ready. Send it to the reviewer before approving it?* — `Send to reviewer` / `Approve without review` / `Keep discussing`. A trivial plan — a rename, a one-line fix, a mechanical edit to a single file — gets no question.
 3. On *Send to reviewer*, the skill checks that agy and its read-only reviewer agent are in place, spends about half a minute on a **read probe** on the first review of a conversation — *list the files at the root, nothing else* — and hands the plan document to the external reviewer. The reviewer reads the repo read-only and comes back with a `PASS` / `FAIL` verdict, labelling every point `[BLOCKING]`, `[SHOULD-FIX]` or `[NOTE]`.
 4. Claude proposes `ACCEPT` / `REJECT` for each point, with its concrete consequence, and asks **which points to take** — a multiple-choice question, or a free answer with the numbers.
@@ -40,11 +40,13 @@ The second layer exists because the first is a rule addressed to a model, and th
 ### When it runs
 
 - **You asked** — a review, a second opinion, a named reviewer, or a plan *and* a review in one breath: it always runs, with no judgement about whether the plan deserves it.
-- **You didn't ask** — it never starts on its own. When Claude considers a **non-trivial** plan ready, it asks you; any plan with architectural consequences counts as non-trivial. Trivial ones get no question: a rename, a one-line fix, a mechanical edit to a single file.
+- **You didn't ask** — it never starts on its own. When Claude considers a **non-trivial** plan ready, it asks you; any plan with architectural consequences counts as non-trivial. Trivial ones get no question: a rename, a one-line fix, a mechanical edit to a single file. Outside plan mode — auto mode, or the default one — there is no plan to ask about, so before a non-trivial change Claude first proposes plan mode, and `EnterPlanMode` asks for your consent. Accept, and the plan is made with you and the question follows; decline, and Claude proceeds as you asked, with no review and no trace.
 
 The cost is why the question exists: a review is an external model call of up to half an hour, in the middle of planning. On an architectural plan that is often time well spent — and it is yours to spend.
 
 The hook is deliberately on `PreToolUse`, not `PostToolUse`. Saving on approval would only give you the document once the plan is already starting — which is the wrong moment, since the whole point is to review before committing to it. On `PreToolUse` the file exists as soon as the plan is on the table, so the after-the-fact path works too: reject the plan, ask for the review, iterate. The cost is that `latest.md` also holds plans you turned down; the next proposal overwrites it, so it tracks the most recent plan rather than the last approved one.
+
+It fires on `ExitPlanMode` and nothing else, so outside plan mode there is no backstop at all: whether plan mode gets proposed rests entirely on Claude following the rule in the `description`. `EnterPlanMode` itself works from auto mode — measured on Claude Code 2.1.311 — but whether Claude reaches for it is model behaviour, not a guarantee.
 
 Two reviewers are available. Antigravity is the default; Claude only fires if you name it.
 
@@ -266,7 +268,7 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
   | deep | `--print-timeout 1800s` | `timeout 1800` / `--max-turns 60` |
 
   The selection rule lives in `skills/antigravity/SKILL.md` section 3 and `skills/claude/SKILL.md` section 3: a judgement from the size of the document, how many files and modules the plan names, and the size of the repo, with the higher tier taken in doubt. The floor is deliberately *not* the default — the review runs only on non-trivial plans, since trivial ones skip the question, so its runs start above it. Per-run overrides: `PLAN_REVIEW_TIMEOUT` (seconds, bare integer, both skills) and `PLAN_REVIEW_MAX_TURNS` (the Claude side only, where the two numbers are one unit).
-- **When it asks**: the trivial/non-trivial line lives in the `description` of `skills/antigravity`, and it decides whether Claude asks you or writes the *not run* line straight away. Widen or narrow it there.
+- **When it asks**: the trivial/non-trivial line lives in the `description` of `skills/antigravity`, and it decides two things — outside plan mode, whether Claude proposes entering it before a change; with a plan ready, whether Claude asks you or writes the *not run* line straight away. Widen or narrow it there, and both move.
 - **The hook's notice**: the text it prepends when a plan declares no review. Fixed English string in `hooks/save-plan.sh`, overridable per environment with `PLAN_REVIEW_NOTICE`. The skill's own trace follows the language of the plan; the hook cannot know it.
 - **Language**: the instructions are in English, the output follows the language of the conversation or of the document. The rule is written in three places — both critic prompts and the response protocol. It applies to the critics' section headings too: on an Italian document `## Sources read` comes back as `## Fonti lette`, which is why the response protocol matches that section by role rather than by its exact English name.
 
