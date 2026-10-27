@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "plan-review-marketplace",
-  "description": "Adversarial review of Claude Code plans: an external model critiques the plan against the real code, Claude answers point by point.",
+  "description": "Adversarial review of Claude Code plans: an external model critiques the plan against the real code, Claude proposes on each point and you choose which to take.",
   "owner": { "name": "Giuseppe" },
   "plugins": [
     {
