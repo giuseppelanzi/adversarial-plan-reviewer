@@ -26,7 +26,7 @@ Before writing any critique, work the document itself:
 
 6. **What is missing entirely?** The case not considered, the cost not counted, the reader who cannot act on it.
 
-7. **Where the document makes claims about this repository, verify them by opening the code.** Do not take a file, a symbol, or a behaviour on trust. If it makes no such claims, do not go looking: the repository is not the subject.
+7. **Where the document makes claims about this repository, verify them by opening the code.** Do not take a file, a symbol, or a behaviour on trust. If it makes no such claims, do not go looking: the repository is not the subject. A path outside the repository — a user's home directory, a global configuration, another project — is not yours to open: list it under *What I could not verify*.
 
 # Output
 

@@ -1,6 +1,6 @@
 # Response protocol
 
-Shared by both reviewer skills of the `plan-review` plugin. Applies once the reviewer's output is back.
+Shared by the reviewer skills of the `plan-review` plugin. Applies once the reviewer's output is back.
 
 The reviewer critiques, you propose, **the user decides**. You say what you would do with each point and why; the user chooses which points to take; you act on those and nothing else. That takes two turns, because you cannot know their choice until it arrives: **phase A** (sections 2 and 3, up to the question) right after the review, **phase B** (the rest of section 3, then sections 4 and 5) after their answer.
 
@@ -17,14 +17,14 @@ Before treating the output as a review, check whether the CLI failed. The failur
 Treat the run as failed if any of these hold:
 
 - non-zero exit code with no critique
-- empty output — for `agy`, an empty stdout with exit 0 is the *normal* shape of a failure, so never read it as "no critique found"
+- empty output — for `agy`, an empty stdout with exit 0 is the *normal* shape of a failure, so never read it as "no critique found"; for `codex`, the critique is the `--output-last-message` file, not stdout — stdout is the event stream and is never empty — so a missing or empty file is the failure
 - the output or stderr carries an authentication, quota, permission (`auto-denied`), or `command not found` error, and no critique came back
 - the process was killed by the timeout
 - **the output is a pointer rather than a critique** — a short paragraph saying the review was written to a file, naming a path. It is not empty, so nothing above catches it. A review has a `VERDICT:` line and labelled points; anything else is a failed run, whatever it says about itself.
 
 The `VERDICT:` line decides, not the exit code and not a `status` field: a run can report success and be empty, and a resumed run has reported an error with a whole critique in it.
 
-A run **killed by the ceiling** is a failed run too, and it is the only one whose cause you already know: the tier was misjudged, not the reviewer. Report the tier it ran under and offer the next one — the tables in the two skills name them. Offering is not re-running, and point 3 below still holds.
+A run **killed by the ceiling** is a failed run too, and it is the only one whose cause you already know: the tier was misjudged, not the reviewer. Report the tier it ran under and offer the next one — each skill's table names them. Offering is not re-running, and point 3 below still holds.
 
 When the run failed:
 
@@ -109,7 +109,7 @@ The close below lives in the conversation and scrolls away. The plan document do
 > 8 points proposed (4 BLOCKING, 3 SHOULD-FIX, 1 NOTE) — awaiting the user's choice.
 ```
 
-The same form for the other reviewer, with `Claude Code (<model>)` in the first line.
+The same form for the other reviewers, with `Claude Code (<model>)` or ``Codex (`gpt-6.1-sol`, high)`` in the first line.
 
 **In phase B** it becomes final — one line per line of section 5's close, the same three facts, not a second summary invented for the occasion:
 
@@ -142,7 +142,7 @@ The third line, one of four:
 
 Quote the reviewer's own error in that first line, trimmed. Do not substitute a cause of your own: naming the wrong one is how a diagnosis nobody re-checks ends up stamped on every plan.
 
-**When the review never started** because the preflight stopped before any run — `agy` not found, or the reviewer agent missing or outdated — there is no reviewer error to quote, so the block says what stopped it:
+**When the review never started** because the preflight stopped before any run — `agy` not found, or the reviewer agent missing or outdated; `codex` not found, or no `timeout` / `gtimeout` for it — there is no reviewer error to quote, so the block says what stopped it:
 
 ```
 > **Review**: Antigravity not run — `agy` not found.
@@ -151,6 +151,16 @@ Quote the reviewer's own error in that first line, trimmed. Do not substitute a 
 
 ```
 > **Review**: Antigravity not run — reviewer agent missing or outdated (~/.gemini/config/agents/plan-reviewer.md).
+> Plan NOT verified.
+```
+
+```
+> **Review**: Codex not run — `codex` not found.
+> Plan NOT verified.
+```
+
+```
+> **Review**: Codex not run — no `timeout` or `gtimeout` on this machine.
 > Plan NOT verified.
 ```
 

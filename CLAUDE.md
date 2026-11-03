@@ -17,23 +17,23 @@ The plugin's *output* follows the language of the conversation or the document. 
 
 ## Things that move together
 
-- **The two skills.** `skills/antigravity/SKILL.md` and `skills/claude/SKILL.md` share their structure: preflight (section 1), document location and critic choice (section 2), the ceiling tiers (section 3). Change one, check the other.
-- **`CRITIC` and `FRAMING`.** One unit in both bash blocks. Swapping the critic without the framing line makes the reviewer invent `file:line` references.
-- **The two critics.** `reviewers/plan-critic.md` and `reviewers/doc-critic.md` keep identical severity levels and pass bar (`FAIL` iff at least one `[BLOCKING]`). They differ only in what counts as evidence and in what `[BLOCKING]` means.
-- **The tier.** On the Claude side the timeout and `--max-turns` are one unit; raising one alone buys nothing.
-- **The trace.** The `> **Review**:` stamp is defined in `reviewers/response-protocol.md` section 4, the *not run* lines — trivial plan, user declined — in the `description` of `skills/antigravity`, the backstop in `hooks/save-plan.sh`. The not-started stamps — `agy` not found, agent missing or outdated — appear in both section 4 and the skill's section 1.
+- **The three skills.** `skills/antigravity/SKILL.md`, `skills/claude/SKILL.md` and `skills/codex/SKILL.md` share their structure: preflight (section 1), document location and critic choice (section 2), the ceiling tiers (section 3). Change one, check the others. What they do **not** share is the boundary: each transport keeps its reviewer read-only with its own mechanism — the agy agent's `tools` list, the Claude allowlist, the Codex sandbox and `--disable` set. Do not carry one transport's mechanism into another: the agy reviewer has no shell because of agy, not because of a plugin rule.
+- **`CRITIC` and `FRAMING`.** One unit in every bash block. Swapping the critic without the framing line makes the reviewer invent `file:line` references.
+- **The two critics.** `reviewers/plan-critic.md` and `reviewers/doc-critic.md` keep identical severity levels and pass bar (`FAIL` iff at least one `[BLOCKING]`), and the same rule that a path outside the repository is not opened but listed under *What I could not verify* — the only fence on the Codex side, where such reads are not refused. They differ only in what counts as evidence and in what `[BLOCKING]` means.
+- **The tier.** On the Claude side the timeout and `--max-turns` are one unit; raising one alone buys nothing. On the Codex side the tier is the external `timeout` alone, and it is required: Codex has no turn cap and no clock of its own.
+- **The trace.** The `> **Review**:` stamp is defined in `reviewers/response-protocol.md` section 4, the *not run* lines — trivial plan, user declined — in the `description` of `skills/antigravity`, the backstop in `hooks/save-plan.sh`. The not-started stamps — `agy` not found, agent missing or outdated; `codex` not found, no `timeout` / `gtimeout` — appear in both section 4 and the section 1 of their skill.
 - **The question.** The text that asks whether to review a ready plan — question, header, three options — is written in the `description` of `skills/antigravity` and again in its section 0, and so is the rule that proposes plan mode before a non-trivial change made outside it. The `description` is the copy that counts: it is the only text in context when the skill never loads — and outside plan mode it never does. It is cut at about 1,500 characters (README, *Known traps*): keep it under ~1,450, and make room before adding.
 - **The reviewer agent.** `reviewers/agy-plan-reviewer.md` and the copy the user installs in `~/.gemini/config/agents/plan-reviewer.md`. The preflight compares them byte for byte, so any edit to the shipped file asks every user to copy it again — say so in the commit.
-- **The model pin.** `gemini-4-argon-high` in both bash blocks of `skills/antigravity`, in the README and in the stamp examples of the response protocol.
+- **The model pin.** `gemini-4-argon-high` in both bash blocks of `skills/antigravity`, in the README and in the stamp examples of the response protocol. On the Codex side, `gpt-6.1-sol` with `model_reasoning_effort="high"` — one setting — in both bash blocks of `skills/codex`, in the README and in the response protocol.
 
 ## Things this repo does not do
 
-- No `--dangerously-skip-permissions` in the agy command, and never hidden in a wrapper script to get it past the classifier.
-- No instructions to the reviewer on which tools to use. Facts about its environment are fine; how to work is not. The agy agent's `tools` list sets the environment — it adds the read tools agy's default agent lacks and leaves out the shell, the same move as `--allowedTools` on the Claude side — and its body states facts only.
+- No `--dangerously-skip-permissions` in the agy command, and never hidden in a wrapper script to get it past the classifier. No `--dangerously-bypass-approvals-and-sandbox` in the codex command, and never a flag of its `--sandbox read-only` / `--disable` set dropped to make a run pass.
+- No instructions to the reviewer on which tools to use. Facts about its environment are fine; how to work is not. The agy agent's `tools` list sets the environment — it adds the read tools agy's default agent lacks and leaves out the shell, the same move as `--allowedTools` on the Claude side — and its body states facts only. On the Codex side the sandbox and the `--disable` flags set the environment.
 - No installing or editing agy's configuration from a session, the reviewer agent included: the skill hands the user the `cp` command and stops.
 - No review started on a plan without the user saying so, unless they asked for one outright. Claude proposes on each point; the user chooses which points to take.
 - No context prepared for the reviewer — no summaries, extracted snippets or curated file lists. The document under review travels inline; the reviewer opens the repo itself.
-- No automatic retry and no fallback to the other reviewer on failure. Report the error, offer the alternative in one line, wait.
+- No automatic retry and no fallback to another reviewer on failure. Report the error, offer the alternative in one line, wait.
 - Nothing inside `.claude-plugin/` except the two manifests.
 
 ## Shell
@@ -42,13 +42,14 @@ The Bash tool runs zsh, and the skills' bash runs there too:
 
 - no `${PIPESTATUS[0]}` — redirect to a file and read `$?`;
 - `${CLAUDE_PROJECT_DIR:-$PWD}`, never bare `$CLAUDE_PROJECT_DIR`;
-- `</dev/null` on every `claude -p` and `agy` call;
+- `</dev/null` on every `claude -p`, `agy` and `codex` call — `codex exec` reads stdin even with the prompt as an argument;
 - every `agy` flag goes before `-p`;
-- `timeout` may be missing on macOS — the Claude skill already handles `gtimeout` and neither.
+- `--ask-for-approval never` goes before `exec`: it is a global `codex` option;
+- `timeout` may be missing on macOS — the Claude skill already handles `gtimeout` and neither; the Codex skill accepts either name and stops when both are missing.
 
 ## Verifying a change
 
 - `claude plugin validate .` — the manifests.
 - `claude --plugin-dir .` — live loop, no install. `SKILL.md` edits apply at once; `hooks/` edits need `/reload-plugins`.
 - An installed copy is under `~/.claude/plugins/cache/`. `claude plugin update` compares only the version string, so without a bump it reports `already at the latest version` and reloads nothing; force the copy with `plugin uninstall` + `plugin install`, then restart.
-- Judge a reviewer run by its output, never its exit code: an empty agy run exits 0, and a failed `claude -p` run sets `.is_error` while exiting 0.
+- Judge a reviewer run by its output, never its exit code: an empty agy run exits 0, a failed `claude -p` run sets `.is_error` while exiting 0, and a codex run is the `VERDICT:` in its `--output-last-message` file — after the exit code, since `124` is the ceiling and a failed run whatever the file holds — never its stdout, which is the event stream.

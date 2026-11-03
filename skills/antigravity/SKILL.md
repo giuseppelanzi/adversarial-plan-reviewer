@@ -7,7 +7,7 @@ description: Submits a plan, or any document — analysis, specification, propos
 
 Antigravity reads the repo on its own. Do not prepare context for it: do not extract files, do not summarize, do not attach code. Hand it the document and then respond to the critique.
 
-This is the default reviewer. It is a different vendor's model from yours, which is the point — it does not share your blind spots. Use `/plan-review:claude` only when the user names it.
+This is the default reviewer. It is a different vendor's model from yours, which is the point — it does not share your blind spots. Use `/plan-review:claude` or `/plan-review:codex` only when the user names them.
 
 ## 0. When to run it
 
@@ -48,7 +48,7 @@ Three checks before the **first** review of a conversation. All are cheap, and e
 
 ### The tool
 
-Run `agy --version` first. If the command is missing, say so and offer `/plan-review:claude` instead — but do not run it yourself. Stamp the plan — no agy run happened, so there is no agy error to quote:
+Run `agy --version` first. If the command is missing, say so and offer `/plan-review:claude` or `/plan-review:codex` instead — but do not run either yourself. Stamp the plan — no agy run happened, so there is no agy error to quote:
 
 ```
 > **Review**: Antigravity not run — `agy` not found.
@@ -110,7 +110,7 @@ echo "=== stderr ==="; head -c 600 "$ERR"
 
 **Reading the result.** `ls -A` prints the real root for free — compare against it. It **passes** when the names are the ones of *this* directory, including at least one a model could not have guessed. It **fails** on an empty `response`, on prose instead of names, or on a plausible generic project — `src/`, `package.json` — that is not this one.
 
-**If it fails, the review does not run.** The events and stderr say why — section 5 lists the causes and their remedies. Write the *failed* stamp of section 4 of the response protocol onto the plan, naming the probe as the cause, and stop. Do not re-run it, and do not reach for the other reviewer on your own.
+**If it fails, the review does not run.** The events and stderr say why — section 5 lists the causes and their remedies. Write the *failed* stamp of section 4 of the response protocol onto the plan, naming the probe as the cause, and stop. Do not re-run it, and do not reach for another reviewer on your own.
 
 **The probe is not a review.** No critic, no verdict, and it never counts toward files read.
 
@@ -236,7 +236,7 @@ Constraints:
   Swapping the critic and leaving the plan-critic framing in place is the one mistake that costs the whole run: *«verify every claim it makes by reading this repository yourself»* is an order to find code behind a text that has none, and the model obeys it by inventing references. The reverse — doc framing with `plan-critic.md` — quietly drops the verification the plan needed.
 - **The Output Delivery Constraint is load-bearing, and each clause was bought with a failed run.** Without the first, agy answers a review request with a *plan for reviewing* and waits for an approval headless can never give. Without the second, it writes the critique to an artefact file and returns a one-line pointer, or hands the work to a subagent the CLI kills on exit (`terminating 1 background task(s)`) — a promise instead of a review. `plan-reviewer` has neither `write_to_file` nor `invoke_subagent`, so the second clause no longer guards an action. Keep it anyway: it is what asks for the critique verbatim in the response, rather than a summary or a sentence about where the critique would be.
 - **It states facts about the environment, and it does not dictate method.** That line is the one to hold. *This run has no channel to answer you*, *a background task dies when the turn ends* — true, unknowable to agy, and saying so is not preparing its context. The agent's tool list, and the three sentences of its body, are of the same kind: they describe the room, not how to work in it. *Use `list_dir` rather than the shell*, or *read these files first*, are the other kind: they tell the reviewer how to work, which is its business and this plugin's central rule.
-- **The model is pinned to `gemini-4-argon-high`.** It is the newest Gemini tier `agy models` lists (seen on agy 1.4.0), after the Pro tier left the list in 1.3.4 and `gemini-3.8-flash-high` stood in for it. It is a different vendor's model from yours, which is the point. Override with `PLAN_REVIEW_MODEL` — `gemini-3.8-flash-high`, the previous pin, is the fallback — and see the failure mode below for when the pin goes stale. `agy models` lists what is available — that list also carries Claude and GPT-OSS models, so agy is a multi-vendor transport and a third opinion is a `--model` flag rather than another skill.
+- **The model is pinned to `gemini-4-argon-high`.** It is the newest Gemini tier `agy models` lists (seen on agy 1.4.0), after the Pro tier left the list in 1.3.4 and `gemini-3.8-flash-high` stood in for it. It is a different vendor's model from yours, which is the point. Override with `PLAN_REVIEW_MODEL` — `gemini-3.8-flash-high`, the previous pin, is the fallback — and see the failure mode below for when the pin goes stale. `agy models` lists what is available — that list also carries Claude models and `gpt-oss-120b`, an open-weights model, but none of OpenAI's frontier ones. For those there is `/plan-review:codex`.
 - **`--print-timeout` carries the tier, and the tier is ours.** agy's own default is `0s` — it waits for the turn to complete, with no limit at all — so the ceiling is a choice this skill makes, not a constraint it inherits. `PLAN_REVIEW_TIMEOUT` overrides it, in **seconds as a bare integer**: the `s` is appended by the command, so `PLAN_REVIEW_TIMEOUT=900s` builds `900ss` and agy rejects it. Being agy's own flag it needs no `timeout`/`gtimeout` wrapper.
 - **Inlining is safe on size.** A 17 KB plan against a 1 MB `ARG_MAX` is under 2%. A document would have to reach hundreds of KB to matter; past that size the document is the problem.
 - **stderr stays captured even though the events carry the diagnosis.** It is where the one-line summary of a refusal appears, and where a mistyped flag shows up before any event is emitted.

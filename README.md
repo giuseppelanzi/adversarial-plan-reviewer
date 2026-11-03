@@ -28,7 +28,7 @@ As far as the plan is concerned, a review you cannot see did not happen. So the 
 > Plan rewritten on the points taken; another pass recommended (BLOCKING taken).
 ```
 
-Four shapes, and one of them is always there: the review **ran** (verdict, files read, the points you took and set aside, what changed in the plan — and, while you are still choosing, a provisional *awaiting the user's choice*), it **failed** (which reviewer, which error, `Plan NOT verified`), it **never started** (`agy` not found, or the reviewer agent missing or outdated, `Plan NOT verified`), or it was **not run** — for a trivial plan with the reason, or exactly *"the user chose to skip the review"*. Unlike the summary in the chat, the block survives into `.claude/plans/` and into the plan you approve.
+Four shapes, and one of them is always there: the review **ran** (verdict, files read, the points you took and set aside, what changed in the plan — and, while you are still choosing, a provisional *awaiting the user's choice*), it **failed** (which reviewer, which error, `Plan NOT verified`), it **never started** (`agy` not found, or the reviewer agent missing or outdated; `codex` not found, or no `timeout` for it; `Plan NOT verified`), or it was **not run** — for a trivial plan with the reason, or exactly *"the user chose to skip the review"*. Unlike the summary in the chat, the block survives into `.claude/plans/` and into the plan you approve.
 
 Two things write it, and it takes both:
 
@@ -48,16 +48,19 @@ The hook is deliberately on `PreToolUse`, not `PostToolUse`. Saving on approval 
 
 It fires on `ExitPlanMode` and nothing else, so outside plan mode there is no backstop at all: whether plan mode gets proposed rests entirely on Claude following the rule in the `description`. `EnterPlanMode` itself works from auto mode — measured on Claude Code 2.1.311 — but whether Claude reaches for it is model behaviour, not a guarantee.
 
-Two reviewers are available. Antigravity is the default; Claude only fires if you name it.
+Three reviewers are available. Antigravity is the default; Claude and Codex only fire if you name them.
 
 | Skill | Command | Read-only | Output |
 |---|---|---|---|
 | `/plan-review:antigravity` | `agy --mode plan --sandbox --agent plan-reviewer` | plan mode + sandbox + an agent whose only tools read, with `--add-dir` as the workspace | stdout |
 | `/plan-review:claude` | `claude -p --permission-mode plan` | flag + tool allowlist | `.result` |
+| `/plan-review:codex` | `codex --ask-for-approval never exec --sandbox read-only` | the operating system's sandbox on everything the model runs + the account's connectors switched off with `--disable` | `--output-last-message` file |
 
-Both are gated on the same preflight — fifteen to thirty seconds — and the probe runs with **the review's own flags** — that is what makes it worth the wait. It is a dress rehearsal, not a health check: a probe that ran with a friendlier command line would prove nothing about the run it precedes. When it fails, the review does not start, the plan is stamped `Plan NOT verified`, and you get the CLI's own error with its remedy.
+All three are gated on the same preflight — ten to thirty seconds — and the probe runs with **the review's own flags** — that is what makes it worth the wait. It is a dress rehearsal, not a health check: a probe that ran with a friendlier command line would prove nothing about the run it precedes. When it fails, the review does not start, the plan is stamped `Plan NOT verified`, and you get the CLI's own error with its remedy.
 
 Antigravity is the default because it is a *different vendor's* model: it does not share your blind spots. The pin is `gemini-4-argon-high`, the newest Gemini tier `agy models` lists (seen on agy 1.4.0) — from another vendor, which is the point. Headless Claude verifies a plan against the code well, but it shares your model family, your `CLAUDE.md` and your conventions, which makes it the weaker adversary. Use it when you want repo-grounded verification rather than genuine disagreement.
+
+Codex is a different vendor's model too: OpenAI's frontier models, which agy does not carry — its only OpenAI entry is the open-weights `gpt-oss-120b`. It runs when you name it, pinned to `gpt-6.1-sol` at `high` effort. It keeps its shell, inside a read-only sandbox: a different boundary from agy's, because each transport sets its own (*Known traps*). One limit to know: it loads a repository's `AGENTS.md` as instructions, the way headless Claude loads `CLAUDE.md`.
 
 Gemini CLI used to be the default and has been removed: Google is folding Gemini Code Assist for individuals into Antigravity, and the standalone CLI now answers `IneligibleTierError` on that tier. Nothing was lost in the swap — both are Google, so the cross-vendor axis that makes the review worth running is intact. It is in the git history if you ever want it back.
 
@@ -74,7 +77,8 @@ claude-ai-reviewer-plugin/
 │   └── marketplace.json     catalog, so the repo can be installed from itself
 ├── skills/
 │   ├── antigravity/SKILL.md
-│   └── claude/SKILL.md
+│   ├── claude/SKILL.md
+│   └── codex/SKILL.md
 ├── reviewers/
 │   ├── plan-critic.md        critic prompt for a plan, or a document about this code
 │   ├── doc-critic.md         critic prompt for a document that is not about this code
@@ -166,7 +170,7 @@ cp hooks/save-plan.sh ~/.claude/hooks/ && chmod +x ~/.claude/hooks/save-plan.sh
 
 The agent is copied twice on purpose: agy looks for agents only in `~/.gemini/config/agents/`, and the preflight compares that copy with the one next to the critics.
 
-Outside a plugin nothing substitutes `${CLAUDE_PLUGIN_ROOT}` for you, so replace it with `$HOME/.claude` in both `SKILL.md` files. Then add the contents of `hooks/hooks.json` to `~/.claude/settings.json`, with the script's absolute path in place of `${CLAUDE_PLUGIN_ROOT}`:
+Outside a plugin nothing substitutes `${CLAUDE_PLUGIN_ROOT}` for you, so replace it with `$HOME/.claude` in every `SKILL.md` file. Then add the contents of `hooks/hooks.json` to `~/.claude/settings.json`, with the script's absolute path in place of `${CLAUDE_PLUGIN_ROOT}`:
 
 ```json
 {
@@ -205,8 +209,9 @@ This is the only thing the system writes into your projects. Add `.claude/plans/
 
 ## Prerequisites
 
-- `jq` — used by the hook and by both skills.
-- At least one of `agy` or `claude`. You simply do not use the skill for the other.
+- `jq` — used by the hook and by every skill.
+- At least one of `agy`, `claude` or `codex`. You simply do not use the skill for the ones you do not have.
+- For `codex`: a login done once (`codex login`, in a terminal), and `timeout` or `gtimeout` — required, see the last point.
 - For `agy`: credentials cached from an earlier interactive login (`agy`, once, in a terminal).
 - For `agy`, **the `plan-reviewer` agent**, installed once per machine — the only setup you add by hand:
 
@@ -216,7 +221,7 @@ This is the only thing the system writes into your projects. Add `.claude/plans/
   ```
 
   With a plugin install the preflight gives you this command with the cache path filled in. The agent lists four tools — `view_file`, `list_dir`, `grep_search`, `find_by_name` — and no shell, so headless agy never has a command to ask permission for. It replaces what this README used to ask: granting agy one shell command after another, which never converged (*Known traps*).
-- Optional: `timeout` (GNU coreutils, `brew install coreutils` on macOS, where it lands as `gtimeout`). The Claude skill detects either name and runs with no wall-clock ceiling if neither is there, leaving `--max-turns` as the only bound; the agy skill uses `--print-timeout` instead. Either way the ceiling comes from a tier — 5, 15 or 30 minutes — chosen per document.
+- `timeout` (GNU coreutils, `brew install coreutils` on macOS, where it lands as `gtimeout`). **Required for Codex**: Codex has no ceiling of its own, so the skill stops before the probe if neither name exists. Optional for the others: the Claude skill detects either name and runs with no wall-clock ceiling if neither is there, leaving `--max-turns` as the only bound; the agy skill uses `--print-timeout` instead. Either way the ceiling comes from a tier — 5, 15 or 30 minutes — chosen per document.
 
 ---
 
@@ -231,7 +236,7 @@ This is the only thing the system writes into your projects. Add `.claude/plans/
 > [you pick the points; Claude rewrites the plan on them and asks: another pass, approve, or keep discussing]
 ```
 
-Or, naming the reviewer: *"ask Antigravity about this plan"*, *"have Claude review the plan"*. After leaving plan mode, *"review the plan"* reviews `.claude/plans/latest.md`.
+Or, naming the reviewer: *"ask Antigravity about this plan"*, *"have Claude review the plan"*, *"ask Codex to review the plan"*. After leaving plan mode, *"review the plan"* reviews `.claude/plans/latest.md`.
 
 It works on a document just as well as on a plan — *"review docs/auth-analysis.md"*, *"dai un'occhiata a questa specifica"* — and the critic follows the document:
 
@@ -251,23 +256,24 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
 
 ## Customization
 
-- **Critic prompts**: `reviewers/plan-critic.md` and `reviewers/doc-critic.md`. These are the files you will tweak most often. **One critic per kind of document, shared by both reviewers** — never one per reviewer: the comparability that matters is between `agy` and `claude` on the same document, and splitting along that axis is what would destroy it. The two critics differ on what counts as evidence, not on rigour: plan-critic demands a `file:line` per point, doc-critic a verbatim quote of the document. Both keep verification inside the repository: a path outside it goes under *What I could not verify*.
+- **Critic prompts**: `reviewers/plan-critic.md` and `reviewers/doc-critic.md`. These are the files you will tweak most often. **One critic per kind of document, shared by every reviewer** — never one per reviewer: the comparability that matters is between reviewers on the same document, and splitting along that axis is what would destroy it. The two critics differ on what counts as evidence, not on rigour: plan-critic demands a `file:line` per point, doc-critic a verbatim quote of the document. Both keep verification inside the repository: a path outside it goes under *What I could not verify*.
 - **Response protocol**: `reviewers/response-protocol.md`. Home of the two phases — Claude's binary `ACCEPT` / `REJECT` proposal per point, then your choice — of the question's shape, and of the stamp's forms.
 - **Severity levels and the pass bar**: both critic prompts, which keep them identical on purpose. `FAIL` fires if and only if at least one point is `[BLOCKING]`, and blocking requires naming what concretely goes wrong. Loosen that definition and everything starts failing; tighten it and nothing does. What `[BLOCKING]` *means* is the one thing that differs: implementing the plan produces work to redo, versus acting on the document produces a wrong decision.
-- **Which critic runs on what**: the selection rule in each `SKILL.md`, section 2 (Antigravity) / section 2 (Claude). A plan is never classified — it always gets `plan-critic.md`.
-- **Default reviewer**: it lives in the `description` of `skills/antigravity` ("and by default when no reviewer is named"). To change it, move that sentence into the other skill.
-- **Reviewer model**: pinned in `skills/antigravity/SKILL.md` to `gemini-4-argon-high`, the newest Gemini tier `agy models` lists (seen on agy 1.4.0). Override per run with `PLAN_REVIEW_MODEL=<model>` — `gemini-3.8-flash-high`, the previous pin, is the fallback — or change the pin. This is the single biggest lever on review quality.
+- **Which critic runs on what**: the selection rule in section 2 of each `SKILL.md`. A plan is never classified — it always gets `plan-critic.md`.
+- **Default reviewer**: it lives in the `description` of `skills/antigravity` ("and by default when no reviewer is named"). To change it, move that sentence into another skill.
+- **Reviewer model**: pinned in `skills/antigravity/SKILL.md` to `gemini-4-argon-high`, the newest Gemini tier `agy models` lists (seen on agy 1.4.0). Override per run with `PLAN_REVIEW_MODEL=<model>` — `gemini-3.8-flash-high`, the previous pin, is the fallback — or change the pin. This is the single biggest lever on review quality. On the Codex side the pin is `gpt-6.1-sol` with `model_reasoning_effort="high"`, in `skills/codex/SKILL.md`; override the model with `PLAN_REVIEW_CODEX_MODEL` — its own variable, since `PLAN_REVIEW_MODEL` carries a Gemini name.
 - **The agy flag set**: `--mode plan --sandbox --agent plan-reviewer --add-dir --output-format stream-json`, in `skills/antigravity/SKILL.md`. `--mode plan` is agy's read-only execution mode, `--sandbox` adds terminal restrictions, `--agent plan-reviewer` is the reviewer whose tools only read, `--add-dir` is the workspace and is not optional. There is no `--effort`: the level is in the model's name, and agy 1.3.4 rejects the flag next to one. `--output-format stream-json` is what turns every failure from prose into an event you can query — and `--dangerously-skip-permissions` is deliberately **not** in the set; the traps below say why.
+- **The codex flag set**: `--ask-for-approval never exec --sandbox read-only -c web_search="disabled" --ignore-user-config --ignore-rules --disable apps --disable plugins --disable goals --disable image_generation --disable hooks --json --output-last-message`, in `skills/codex/SKILL.md`. The sandbox stops writes from the shell, from `apply_patch` and from subagents; the `--disable` set removes the account's connectors, which no local sandbox reaches; `web_search` off keeps the reviewer on the repository, like the other two. `--dangerously-bypass-approvals-and-sandbox` is deliberately **not** in the set, and neither is `--ephemeral`.
 - **The reviewer agent**: `reviewers/agy-plan-reviewer.md` — four read tools, and a body that states facts about the reviewer's environment and nothing about how to work. Change it here, then copy it again into `~/.gemini/config/agents/plan-reviewer.md`; the preflight refuses a stale copy.
 - **The ceiling on a run**: three tiers, picked per document by the skill and stated when it is not the floor.
 
-  | Tier | agy | claude |
-  |---|---|---|
-  | short | `--print-timeout 300s` | `timeout 300` / `--max-turns 20` |
-  | standard | `--print-timeout 900s` | `timeout 900` / `--max-turns 40` |
-  | deep | `--print-timeout 1800s` | `timeout 1800` / `--max-turns 60` |
+  | Tier | agy | claude | codex |
+  |---|---|---|---|
+  | short | `--print-timeout 300s` | `timeout 300` / `--max-turns 20` | `timeout 300` |
+  | standard | `--print-timeout 900s` | `timeout 900` / `--max-turns 40` | `timeout 900` |
+  | deep | `--print-timeout 1800s` | `timeout 1800` / `--max-turns 60` | `timeout 1800` |
 
-  The selection rule lives in `skills/antigravity/SKILL.md` section 3 and `skills/claude/SKILL.md` section 3: a judgement from the size of the document, how many files and modules the plan names, and the size of the repo, with the higher tier taken in doubt. The floor is deliberately *not* the default — the review runs only on non-trivial plans, since trivial ones skip the question, so its runs start above it. Per-run overrides: `PLAN_REVIEW_TIMEOUT` (seconds, bare integer, both skills) and `PLAN_REVIEW_MAX_TURNS` (the Claude side only, where the two numbers are one unit).
+  The selection rule lives in section 3 of each skill: a judgement from the size of the document, how many files and modules the plan names, and the size of the repo, with the higher tier taken in doubt. The floor is deliberately *not* the default — the review runs only on non-trivial plans, since trivial ones skip the question, so its runs start above it. Per-run overrides: `PLAN_REVIEW_TIMEOUT` (seconds, bare integer, every skill) and `PLAN_REVIEW_MAX_TURNS` (the Claude side only, where the two numbers are one unit).
 - **When it asks**: the trivial/non-trivial line lives in the `description` of `skills/antigravity`, and it decides two things — outside plan mode, whether Claude proposes entering it before a change; with a plan ready, whether Claude asks you or writes the *not run* line straight away. Widen or narrow it there, and both move.
 - **The hook's notice**: the text it prepends when a plan declares no review. Fixed English string in `hooks/save-plan.sh`, overridable per environment with `PLAN_REVIEW_NOTICE`. The skill's own trace follows the language of the plan; the hook cannot know it.
 - **Language**: the instructions are in English, the output follows the language of the conversation or of the document. The rule is written in three places — both critic prompts and the response protocol. It applies to the critics' section headings too: on an Italian document `## Sources read` comes back as `## Fonti lette`, which is why the response protocol matches that section by role rather than by its exact English name.
@@ -295,7 +301,7 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
 
 - **The installed agent can fall behind the plugin.** agy reads its copy in `~/.gemini/config/agents/`, not the one in this repo. The preflight compares the two byte for byte and refuses a stale one, which is why an update that changes the agent asks you to copy it again.
 
-- **agy updates itself, and 1.3.4 broke the old pin twice.** `gemini-3.1-pro-high` left `agy models` (the Pro tier needs a costly plan), and a model name that carries its level now rejects `--effort`: `invalid model selection (--model "gemini-3.1-pro-high" --effort "high"): --effort is not supported`. The pin moved to `gemini-3.8-flash-high` with no `--effort`, then to `gemini-4-argon-high` once the Gemini 4 Argon tier appeared in `agy models` — still no `--effort`, the level is in the name. With it the probe takes about half a minute instead of fifteen seconds (26 measured). An unknown model makes the whole skill fail rather than degrade: `agy models`, then `PLAN_REVIEW_MODEL=<one of them>`. That list also carries Claude and GPT-OSS models — agy is a multi-vendor transport, so a third opinion is a `--model` flag rather than another skill.
+- **agy updates itself, and 1.3.4 broke the old pin twice.** `gemini-3.1-pro-high` left `agy models` (the Pro tier needs a costly plan), and a model name that carries its level now rejects `--effort`: `invalid model selection (--model "gemini-3.1-pro-high" --effort "high"): --effort is not supported`. The pin moved to `gemini-3.8-flash-high` with no `--effort`, then to `gemini-4-argon-high` once the Gemini 4 Argon tier appeared in `agy models` — still no `--effort`, the level is in the name. With it the probe takes about half a minute instead of fifteen seconds (26 measured). An unknown model makes the whole skill fail rather than degrade: `agy models`, then `PLAN_REVIEW_MODEL=<one of them>`. That list also carries Claude models and the open-weights `gpt-oss-120b`, but none of OpenAI's frontier models — for those there is `/plan-review:codex`.
 
 - **Three remedies that look obvious and do nothing.** Each was measured against the shell refusals, before the agent existed. **Trusting the workspace**: agy keeps a `trustedWorkspaces` list, and the same folder, trusted, fails identically. **Naming the tool**: telling agy to use `list_dir` did not stop it reaching for `run_command` — it could not, since the default agent has no `list_dir`; naming it in the agent's `tools` did. **Dropping `--mode plan`**: the refusal is identical with the flag and without it.
 
@@ -315,18 +321,36 @@ Naming the critic overrides the choice. Whichever ran, the closing summary says 
 
 - **A long critique comes back as a pointer, not as the review.** Left alone, agy treats an extensive report as an artefact: it writes the review to a file under its own working directory and returns one line on stdout naming the path. That output is *not empty*, so it sails past every "did the run fail" check. The prompt carries an **Output Delivery Constraint** to prevent it, forbidding `write_to_file` and demanding the critique verbatim in the response. Under `plan-reviewer` the write itself is gone — the agent has no `write_to_file` — and the constraint stays for the response it shapes: the critique verbatim, not a sentence about where it is. If you ever see a plan review summarised as "the review is in review.md", that constraint went missing.
 
-- **The critic and its framing line are one unit, and the framing line is easy to forget.** Both `SKILL.md` bash blocks carry a `FRAMING` string right above the document, and under `plan-critic.md` it orders the reviewer to *"verify every claim it makes by reading this repository yourself"*. Swap `CRITIC` to `doc-critic.md` and leave that line behind, and you have told a reviewer to find code behind a text that has none — it obeys by inventing `file:line` references, and the result is a review that looks grounded and is not. The two variables sit next to each other for this reason. The reverse mistake, doc framing with `plan-critic.md`, is quieter: the review simply stops verifying.
+- **The critic and its framing line are one unit, and the framing line is easy to forget.** Every `SKILL.md` bash block carries a `FRAMING` string right above the document, and under `plan-critic.md` it orders the reviewer to *"verify every claim it makes by reading this repository yourself"*. Swap `CRITIC` to `doc-critic.md` and leave that line behind, and you have told a reviewer to find code behind a text that has none — it obeys by inventing `file:line` references, and the result is a review that looks grounded and is not. The two variables sit next to each other for this reason. The reverse mistake, doc framing with `plan-critic.md`, is quieter: the review simply stops verifying.
 
 - **`--log-file` is the only real diagnostic.** A muted run gives you one line of stderr and nothing else. `agy … --log-file /tmp/agy.log`, then `grep -iE 'permission|grant|project' /tmp/agy.log`, tells you whether the workspace was lost or a tool stopped the run.
 - **The five-minute ceiling was never agy's.** `--print-timeout` defaults to `0s`: agy waits for the turn to complete, with no limit at all. The cap is this plugin's own choice — which is why it is a tier of three, 5 / 15 / 30 minutes, picked per document instead of one number for everything. What makes a generous ceiling cheap is that a timeout is a ceiling and not a budget: a review that needs four minutes takes four minutes whatever the ceiling, so the tier only decides how long you wait before concluding the run is broken.
 - **On the Claude side, raising the timeout alone buys nothing.** `--max-turns` bounds the agent loop independently of the clock, so a longer wrapper with 20 turns still ends at turn 20 — and comes back with a *partial* critique that looks complete. The two numbers are the tier and they move together, which is why there are two override variables rather than one. A timeout is silent there as well, because the wrapper kills the process instead of reporting: exit `124` or `143`, a truncated envelope, and the `!! output is not JSON, raw:` fallback printing it.
-- **`timeout` does not exist on macOS.** GNU `timeout` is not shipped with macOS; `brew install coreutils` provides it as `gtimeout`. The Claude skill picks whichever exists and runs unwrapped if neither does, so a stock Mac degrades instead of dying on `command not found`. The Antigravity skill uses agy's native `--print-timeout` and needs no wrapper. Unwrapped means `--max-turns` is the only ceiling left: at the short tier that was a footnote, at the deep tier the half-hour ceiling simply does not exist on that machine.
+- **`timeout` does not exist on macOS.** GNU `timeout` is not shipped with macOS; `brew install coreutils` provides it as `gtimeout`. The Claude skill picks whichever exists and runs unwrapped if neither does, so a stock Mac degrades instead of dying on `command not found`. The Antigravity skill uses agy's native `--print-timeout` and needs no wrapper. The Codex skill takes either name too, but stops when both are missing: Codex has no turn cap, so unwrapped would mean unbounded. (The Mac this was last measured on, Darwin 27.2, does ship `/usr/bin/timeout`; older ones may not.) On the Claude side, unwrapped means `--max-turns` is the only ceiling left: at the short tier that was a footnote, at the deep tier the half-hour ceiling simply does not exist on that machine.
+- **On Codex the shell stays, and that is not the agy mistake.** agy's reviewer lost its shell because agy's default agent could not explore headless without one and the grants never converged. Codex keeps it because `--sandbox read-only` runs what the model executes under the operating system's sandbox. Measured on `codex-cli 0.166.0`: `codex sandbox -P :read-only` fails `touch` with `Operation not permitted` inside and outside the working directory; in a model run `apply_patch` was refused (`patch rejected: writing is blocked by read-only sandbox`), and so was a subagent's write — subagents inherit the sandbox. Launched from Claude Code in auto mode, the command started cleanly: no classifier refusal, no clash with a sandbox around the Bash tool. Each transport sets its own boundary; do not carry one into another.
+
+- **The account's connectors survive `--ignore-user-config`.** With the configuration ignored, a Codex run still listed about a hundred `mcp__codex_apps__*` tools — the ChatGPT account's apps: deploying sites, editing their environment variables, parental controls, repository write credentials. They act on external services, where a local sandbox has no say, and they come from the `apps` feature, on by default, not from `config.toml`. `--disable apps` removes them all; `--disable plugins`, `goals` and `image_generation` take care of `request_plugin_install`, `create_goal` and `image_gen`. `--disable multi_agent` does **not** remove `collaboration.*` — harmless, since the subagents inherit the sandbox, but do not count on the flag.
+
+- **Codex's read-only is not repository-only.** Asked to read a file in another temporary directory, the reviewer did. `--cd` sets the working directory, not a boundary. The only fence is `plan-critic.md`'s rule that sends outside paths to *What I could not verify* — the opposite of agy, where such reads are refused.
+
+- **Codex's event stream is not a full log.** It does not name the model — the stamp names the one passed with `--model`. In the measured runs, a shell write and the `apply_patch` calls left no item in it. A refused call reaches stderr instead, as `codex_core::tools::router: error=…`. The critique is the `--output-last-message` file, written only when a turn completes, so every run — probe and review — gets a fresh `mktemp -d` directory: with a fixed path, a run that dies would hand you the previous critique, and two sessions reviewing at once could swap theirs. And the exit code comes first: `124` is the ceiling, a failed run even if a critique is on disk.
+
+- **A project's own MCP servers were not loaded.** A repository `.codex/config.toml` declaring a harmless MCP server that logs its own start never started it — under the skill's flags, and even with the project marked trusted through a `-c projects."<path>".trust_level` override, with the isolation flags and without. Some other trust path is not ruled out.
+
+- **Codex loads a repository `AGENTS.md`.** A fixture `AGENTS.md` asking for a marker line got it, with `--ignore-user-config` and `--ignore-rules` on the command line, from the reviewer and from its subagent. It is this reviewer's `CLAUDE.md` problem. Whether `--ignore-user-config` skips `~/.codex/AGENTS.md` is not measured.
+
+- **`--ask-for-approval` is a global `codex` option.** It goes before `exec`; `codex exec --help` does not list it. With `never`, a refused call comes back to the model as an error instead of waiting for an approval headless cannot give.
+
+- **`codex exec resume` takes no `--sandbox`.** Nor `--cd`. A resumed review would run under a sandbox nobody chose, which is why the Codex skill offers a new run after an interruption, not a resume. The session is saved anyway — no `--ephemeral` — so resuming can come once its sandbox is measured.
+
+- **Codex refuses a directory that is not a git repository.** Exit 1, no events: `Not inside a trusted directory and --skip-git-repo-check was not specified.` Adding the flag is the user's call, never the skill's.
+
 - **`$CLAUDE_PROJECT_DIR` is a hook variable, not a shell one.** It is set for hook commands, but it is empty in the shell the skill runs its bash in. `cd "$CLAUDE_PROJECT_DIR"` then silently stays put, and `$CLAUDE_PROJECT_DIR/.claude/plans/latest.md` resolves to `/.claude/plans/latest.md`. The skills use `${CLAUDE_PROJECT_DIR:-$PWD}`.
 - **`agy -p` swallows the next argument as its prompt.** Every other flag goes *before* `-p`. `agy -p --mode plan "..."` takes `--mode` as the prompt and drops the real one.
 - **`.result` on the Claude side**, and `.is_error` is set on a failed run that still exits 0. Reading the wrong field yields empty output and no error.
 - **`--max-turns` is undocumented.** It works on `claude -p` but does not appear in `claude --help`. If a future version rejects it, drop the flag rather than the review.
 - **`${PIPESTATUS[0]}` is bash-only.** Claude Code's Bash tool runs zsh, where that expands to nothing and the exit code silently vanishes (zsh spells it `$pipestatus[1]`, 1-indexed). The skills redirect the reviewer's output to a file and read plain `$?` instead of piping into `jq`.
-- **`claude -p` waits on stdin.** Without `</dev/null` it blocks 3 seconds and warns `no stdin data received in 3s`. Both skills redirect stdin; the prompt is an argument, never piped.
+- **`claude -p` waits on stdin.** Without `</dev/null` it blocks 3 seconds and warns `no stdin data received in 3s`. Every skill redirects stdin, and `codex exec` needs it as much: it reads stdin even when the prompt is an argument (`Reading additional input from stdin...`). The prompt is an argument, never piped.
 - **`${CLAUDE_PLUGIN_ROOT}` is substituted into the SKILL.md text, not read from the environment.** Claude Code expands it when it loads the skill, so by the time the instructions arrive the path is already absolute and the literal string never reaches a shell. It is reliable in skills for that reason — it is how the preflight hands you the agent's `cp` command with the real cache path. The *environment variable* of the same name is a different thing and is empty in the shell the Bash tool runs, so a script that generates a command at runtime cannot use it. Note the substitution applies to the braced form `${CLAUDE_PLUGIN_ROOT}`; `$CLAUDE_PLUGIN_ROOT` written bare is left alone.
 - **Plugin edits reach a running session only under `--plugin-dir`.** There, changes to `SKILL.md` take effect immediately while changes under `hooks/` do not — those need `/reload-plugins` or a restart, and the trace backstop lives under `hooks/`, so it stays dormant until you reload. Installed from a marketplace none of that applies: you are running the copy under `~/.claude/plugins/cache/`, and nothing you edit in the repo is live until you update *and* restart. See *From disk, and how to reload it* above — in particular that the update is keyed on the version string, so an unbumped `plugin.json` reloads nothing while reporting success.
 - **Skills fire everywhere.** At user level or as a plugin they apply in every repo, including ones where `agy` is not installed. If it gets noisy, narrow the `description`s.
@@ -344,7 +368,7 @@ Two things are rigid on purpose, but you may not like them in practice:
 
 - **Binary proposal on each point.** "Partially valid" is the escape hatch through which a critique gets absorbed without changing anything. On some critiques, though, the honest answer really is somewhere in between. If you see forced answers, soften the protocol.
 - **You are the judge, Claude is the advocate.** It used to be the other way round: Claude — the author of the plan — ruled `ACCEPTED` / `REJECTED` on criticism of its own work, and the protocol could only make motivated reasoning harder. Now Claude *proposes*, with the `file:line` or the constraint behind each proposal, and you choose which points to take. The price is a second turn and a question per review; the gain is that a point you think matters cannot be argued away by the plan's own author.
-- **Adversarial is a persona, not a structure.** The critic has no stake: it does not win by finding a flaw or lose by missing one. What actually does the work is the fresh context reading the real code without the conversation's accumulated assumptions — which is why *"do not prepare context for it"* is the load-bearing instruction in both skills. Start passing it a helpful summary and the tone stays adversarial while the value disappears.
+- **Adversarial is a persona, not a structure.** The critic has no stake: it does not win by finding a flaw or lose by missing one. What actually does the work is the fresh context reading the real code without the conversation's accumulated assumptions — which is why *"do not prepare context for it"* is the load-bearing instruction in every skill. Start passing it a helpful summary and the tone stays adversarial while the value disappears.
 
   One thing that is *not* a violation of that rule: the plan document itself travels inline, inside the prompt. It has to — the plan lives outside the repo while you are in plan mode, the reviewer's permissions are anchored to the workspace, and plan mode won't let Claude copy it in. But the document is the **object under review**, not context about the code, and by value or by reference is a transport detail. The line to hold is the other one: no summaries, no extracted snippets, no curated file list. The reviewer opens the repo itself, or the review is worth nothing.
 
