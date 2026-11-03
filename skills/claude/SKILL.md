@@ -13,11 +13,11 @@ Note the trade-off, and mention it if the user seems to expect otherwise: the re
 
 Only when the user names Claude as the reviewer. For an unnamed review, `/plan-review:antigravity` is the default.
 
-The trace rule is the same one the other skill carries: whatever the outcome, the plan document ends up with a `> **Review**: …` line right after its title — section 4 of the response protocol.
+The trace rule is the same one the other skills carry: whatever the outcome, the plan document ends up with a `> **Review**: …` line right after its title — section 4 of the response protocol.
 
-This reviewer never starts on its own, and it never goes through the question the other skill asks when a plan is ready: the user names it, and that is the request. The rest follows the response protocol like the other reviewer: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
+This reviewer never starts on its own, and it never goes through the question the Antigravity skill asks when a plan is ready: the user names it, and that is the request. The rest follows the response protocol like the other reviewers: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
 
-The timing is the same as the other reviewer's: *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Plan mode blocks writes, not reads, and the plan document is the one file you may edit — so the *review → choose → revise → propose* loop closes inside plan mode rather than forcing the user to reject a plan just to get it reviewed.
+The timing is the same as the other reviewers': *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Plan mode blocks writes, not reads, and the plan document is the one file you may edit — so the *review → choose → revise → propose* loop closes inside plan mode rather than forcing the user to reject a plan just to get it reviewed.
 
 ## 1. Preflight — can the reviewer read this repo?
 
@@ -65,7 +65,7 @@ For any other document — an analysis, a specification, a proposal, a note — 
 
 ### The critic
 
-Same rule as the other skill, and the two critics live in the same `${CLAUDE_PLUGIN_ROOT}/reviewers/`:
+Same rule as the other skills, and the two critics live in the same `${CLAUDE_PLUGIN_ROOT}/reviewers/`:
 
 1. **a plan document** — a plan mode session's, or `latest.md` → **always** `plan-critic.md`;
 2. otherwise, **are the document's claims verifiable against this repository?** An analysis of this codebase, an ADR, a post-mortem on it → `plan-critic.md`. A specification, a proposal, a note, anything whose subject is not this code → `doc-critic.md`;
