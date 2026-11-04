@@ -86,7 +86,7 @@ Rewrite the plan on **the points the user took, and only those**, and show the d
 
 If, while applying a point they took, you find it is wrong after all, say so and why, instead of skipping it in silence.
 
-Then state the outcome and ask the final question — **another pass**, **approve** (`ExitPlanMode`), or **keep discussing**:
+Then state the outcome and ask the final question — **another pass**, **approve** (`ExitPlanMode`), or **keep discussing**. Another pass goes to the reviewer of the first, with no question about which: it checks that its own points were resolved. A different reviewer only if the user names one.
 
 - **a `[BLOCKING]` taken** → the plan changed where it would have broken: another pass is **recommended**. Recommend it; the user decides.
 - **only `[SHOULD-FIX]` or `[NOTE]` taken** → the plan is rewritten and no further pass is needed.

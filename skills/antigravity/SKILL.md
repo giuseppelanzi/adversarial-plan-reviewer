@@ -1,27 +1,46 @@
 ---
 name: antigravity
-description: Submits a plan, or any document — analysis, specification, proposal, decision note — to Antigravity CLI (agy) as an adversarial, read-only reviewer; you propose on each point, the user chooses which to take. Use it whenever the user asks for a review, a second opinion or a critique, to "ask agy" or "ask Antigravity", to check, verify or validate a plan or a document before acting on it — and by default when no reviewer is named. Never start it on a plan on your own: discuss the plan with the user first. When a non-trivial plan is ready — any plan with architectural consequences — ask with AskUserQuestion: "The plan is ready. Send it to the reviewer before approving it?", header "Review", options "Send to reviewer" / "Approve without review" / "Keep discussing"; run it only on "Send to reviewer". A trivial plan — a rename, a one-line fix, a mechanical edit to a single file — gets no question. Either way, right after the plan's title: `> **Review**: not run — <reason>` when trivial, exactly `> **Review**: not run — the user chose to skip the review.` when the user declines. The review runs in plan mode, on the plan document, before ExitPlanMode. Outside plan mode, before a change that is non-trivial by the same line, propose plan mode with EnterPlanMode — unless the user said to proceed without a plan; if they decline, proceed with no review and no stamp. Requests may come in any language.
+description: Submits a plan or any document — analysis, specification, proposal, note — to Antigravity CLI (agy), an adversarial read-only reviewer; you propose on each point, the user picks which to take. Use it when the user names agy or Antigravity, or picks it in a question below. The user picks the reviewer each time, and you run the skill picked: asked to review, check or critique a plan or document, or for a second opinion, with no reviewer named, ask with AskUserQuestion, header "Reviewer", options "Antigravity" / "Codex" / "Claude". Never start a review of a plan on your own: discuss it first. When a non-trivial plan is ready — any plan with architectural consequences — ask: "The plan is ready. Send it to a reviewer before approving it?", header "Review", options "Antigravity" / "Codex" / "Claude" / "Approve without review"; a free answer means keep discussing. A trivial plan — a rename, a one-line fix, a mechanical edit to a single file — gets no question. Either way, right after the plan's title: `> **Review**: not run — <reason>` when trivial, exactly `> **Review**: not run — the user chose to skip the review.` on "Approve without review". It runs in plan mode, before ExitPlanMode. Outside plan mode, before a non-trivial change by the same line, propose plan mode with EnterPlanMode, unless the user said to proceed without one; declined, proceed with no review and no stamp. Requests may come in any language.
 ---
 
 # Plan review — Antigravity CLI (agy)
 
 Antigravity reads the repo on its own. Do not prepare context for it: do not extract files, do not summarize, do not attach code. Hand it the document and then respond to the critique.
 
-This is the default reviewer. It is a different vendor's model from yours, which is the point — it does not share your blind spots. Use `/plan-review:claude` or `/plan-review:codex` only when the user names them.
+There is no default reviewer: the user picks one each time, and this skill also holds the two questions that ask them. Antigravity is a different vendor's model from yours, which is its point — it does not share your blind spots. So is Codex; headless Claude is not.
 
 ## 0. When to run it
 
 Two rules, in order of precedence.
 
-**Asked for → always.** If the user asks for a review, names a reviewer, or asks for a plan *and* a review, run it. Do not weigh whether the plan deserves one: they asked.
+**Asked for → always.** If the user asks for a review, or for a plan *and* a review, a review runs. Do not weigh whether the plan deserves one: they asked. Which reviewer:
+
+- **named** — in the request, by picking it in one of the questions below, or by invoking its skill directly → that one. A reviewer picked in a question is named: run its skill and do not ask again;
+- **not named** → ask with `AskUserQuestion`:
+  - question: `Which reviewer should review it?`
+  - header: `Reviewer`
+  - options, single choice: `Antigravity` / `Codex` / `Claude`
+
+  The answer is the request.
 
 **Not asked for → never on your own: the user decides.** Plan mode is where the plan is made *with* the user, so discuss it first. When you consider a non-trivial plan ready — after the discussion, not instead of it — ask with `AskUserQuestion`:
 
-- question: `The plan is ready. Send it to the reviewer before approving it?`
+- question: `The plan is ready. Send it to a reviewer before approving it?`
 - header: `Review`
-- options, single choice: `Send to reviewer` / `Approve without review` / `Keep discussing`
+- options, single choice: `Antigravity` / `Codex` / `Claude` / `Approve without review`
 
-Their answer is the confirmation. **Send to reviewer** → run this skill. **Approve without review** → write the *skipped* line below and call `ExitPlanMode`. **Keep discussing** → keep discussing, and ask again when the plan is ready again; a free-text answer under *Other* is part of that discussion.
+Their answer is the confirmation. "Keep discussing" has no option of its own — the tool takes four at most — so a free-text answer under *Other* means keep discussing: do that, and ask again when the plan is ready again.
+
+**One map for both questions:**
+
+| Answer | What runs |
+|---|---|
+| `Antigravity` | this skill |
+| `Codex` | `/plan-review:codex` |
+| `Claude` | `/plan-review:claude` |
+| `Approve without review` — `Review` only | no review: write the *skipped* line below and call `ExitPlanMode` |
+
+**Another pass** — the final question of the response protocol — goes to the reviewer of the first pass, with no `Reviewer` question: it checks that its own points were resolved. Another reviewer only if the user names one.
 
 A plan with architectural consequences is non-trivial by definition. Trivial ones get no question: a rename, a one-line fix, a mechanical edit to a single file. Declare them and propose.
 
@@ -31,7 +50,7 @@ Plan mode blocks writes, not reads — bash runs fine there, and the plan docume
 
 A review is an agy call of up to half an hour in the middle of planning — the ceiling is a tier picked per document, section 3. That cost is why the user decides, why trivial plans get no question, and why the first review of a conversation is gated on the preflight of section 1.
 
-**Either way, the plan says so.** A decision nobody can see did not happen: a plan with no review looks exactly like a plan whose review was never mentioned. When the review runs, the trace is section 4 of the response protocol. When it does not, write the line yourself, right after the document's `#` title — with the reason for a trivial plan, and in exactly this form when the user declined:
+**Either way, the plan says so.** A decision nobody can see did not happen: a plan with no review looks exactly like a plan whose review was never mentioned. When the review runs, the trace is section 4 of the response protocol. When it does not, write the line yourself, right after the document's `#` title — with the reason for a trivial plan, and in exactly this form when the user picked `Approve without review`:
 
 ```
 > **Review**: not run — mechanical edit to a single file.

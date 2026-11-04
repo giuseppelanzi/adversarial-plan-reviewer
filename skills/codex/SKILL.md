@@ -1,19 +1,19 @@
 ---
 name: codex
-description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to OpenAI Codex CLI (`codex exec`) as an adversarial reviewer in a read-only sandbox; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user explicitly asks for a review by Codex or by OpenAI. For a review with no reviewer named, use /plan-review:antigravity instead. Like it, on a plan this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
+description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to OpenAI Codex CLI (`codex exec`) as an adversarial reviewer in a read-only sandbox; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Codex or OpenAI as the reviewer — in the request, or by picking it in a question of /plan-review:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
 ---
 
 # Plan review — Codex CLI
 
 Codex reads the repo on its own. Do not prepare context for it: do not extract files, do not summarize, do not attach code. Hand it the document and then respond to the critique.
 
-It is a different vendor's model from yours — OpenAI's, as the default reviewer's is Google's. Note one limit, and mention it if the user seems to expect otherwise: Codex loads an `AGENTS.md` it finds in the repository as instructions of its own, measured, and it also reads one from its own home directory. A repo with an `AGENTS.md` hands this reviewer the project's conventions the way `CLAUDE.md` reaches the Claude reviewer: a different model, but not an entirely fresh pair of eyes.
+It is a different vendor's model from yours — OpenAI's, as Antigravity's is Google's. Note one limit, and mention it if the user seems to expect otherwise: Codex loads an `AGENTS.md` it finds in the repository as instructions of its own, measured, and it also reads one from its own home directory. A repo with an `AGENTS.md` hands this reviewer the project's conventions the way `CLAUDE.md` reaches the Claude reviewer: a different model, but not an entirely fresh pair of eyes.
 
 ## 0. When to run it
 
-Only when the user names Codex — or OpenAI — as the reviewer. For an unnamed review, `/plan-review:antigravity` is the default.
+Only when the user names Codex — or OpenAI — as the reviewer, in the request, or by picking `Codex` in one of the two questions of `/plan-review:antigravity`. For an unnamed review, ask that skill's `Reviewer` question first: there is no default reviewer.
 
-This reviewer never starts on its own, and it never goes through the question the Antigravity skill asks when a plan is ready: the user names it, and that is the request. The rest follows the response protocol like the other reviewers: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
+This reviewer never starts on its own. Picked in a question, it is named: that answer is the request, so run it without asking again. Another pass stays with it, unless the user names a different reviewer. The rest follows the response protocol like the other reviewers: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
 
 The trace rule is the one the other skills carry: whatever the outcome, the plan document ends up with a `> **Review**: …` block right after its title — section 4 of the response protocol.
 
@@ -135,7 +135,7 @@ Pick one as **a judgement you state, not a threshold you count**:
 - **standard** — the ordinary case: a plan with architectural consequences, several modules touched, a document past ~10 KB, a repo of some hundreds of files. **In doubt, take the higher tier.**
 - **deep** — a review in depth was asked for; or a previous run hit a ceiling; or the plan rewrites something structural across a large repo.
 
-The signals are free and in hand: the size of the document, how many distinct files and modules the plan names, `git ls-files | wc -l` for the repo. The floor is deliberately not the default — this reviewer runs only when the user names it, and nobody asks a named reviewer for a second opinion on a trivial document, so its runs start above the floor. Say which tier you ran under when it is not the floor: section 5 of the response protocol.
+The signals are free and in hand: the size of the document, how many distinct files and modules the plan names, `git ls-files | wc -l` for the repo. The floor is deliberately not the default — this reviewer runs only when the user names or picks it, and trivial plans get no question, so its runs start above the floor. Say which tier you ran under when it is not the floor: section 5 of the response protocol.
 
 ### The command
 
