@@ -1,6 +1,6 @@
 {
   "name": "plan-review",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Adversarial review of Claude Code plans by an external reviewer (Antigravity CLI, headless Claude Code or Codex CLI): Claude proposes on each point, you choose which to take.",
   "author": { "name": "Giuseppe" },
   "keywords": ["review", "plan-mode", "antigravity", "agy", "codex", "adversarial"]
