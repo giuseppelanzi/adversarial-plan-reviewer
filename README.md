@@ -1,8 +1,29 @@
-# plan-review
+# Claude AI Reviewer plugin
 
 Adversarial review of Claude Code plans by an external model, with a point-by-point proposal from Claude and the final word to you.
 
+It installs as the `plan-review` plugin, with one skill per reviewer: `/plan-review:antigravity`, `/plan-review:codex`, `/plan-review:claude`.
+
 It runs when you decide, with the reviewer you pick. Claude makes the plan with you, and when the plan is ready it asks whether to send it to a reviewer, and to which one; it always runs when you ask for it outright. It is not a gate: it never blocks you, it hands you a critique, Claude's proposal for each point, and a plan rewritten on the points you choose — approving or rejecting stays your call.
+
+## At a glance
+
+```mermaid
+flowchart TD
+    A["You and Claude write a plan in plan mode"] --> B{"The plan is ready.<br/>Send it to a reviewer?"}
+    B -- "Approve without review" --> Z["You approve the plan"]
+    B -- "Antigravity / Codex / Claude" --> C["The reviewer reads the plan and the repo,<br/>read-only"]
+    C --> D["Verdict PASS / FAIL,<br/>each point BLOCKING, SHOULD-FIX or NOTE"]
+    D --> E["Claude proposes ACCEPT or REJECT<br/>for each point"]
+    E --> F["You choose which points to take"]
+    F --> G["Claude rewrites the plan on those points<br/>and stamps the outcome under its title"]
+    G -- "another pass" --> C
+    G -- "approve" --> Z
+```
+
+- **Three reviewers, none the default**: Antigravity (Google's Gemini), Codex (OpenAI) and a second, headless Claude Code. You pick one each time.
+- **Read-only**: the reviewer opens the repo to check the plan against the code, and can change nothing.
+- **Your call**: a trivial plan — a rename, a one-line fix — gets no question, and you can ask for a review of any plan or document at any moment. Whatever happens, a `> **Review**:` line under the plan's title says so.
 
 ---
 
