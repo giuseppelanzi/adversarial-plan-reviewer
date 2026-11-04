@@ -1,6 +1,6 @@
 ---
 name: claude
-description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user explicitly asks for a review by Claude, by "a second Claude", or by Claude Code itself. For a review with no reviewer named, use /plan-review:antigravity instead. Like it, on a plan this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
+description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Claude as the reviewer — "a second Claude", Claude Code itself — in the request, or by picking it in a question of /plan-review:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
 ---
 
 # Plan review — headless Claude Code
@@ -11,11 +11,11 @@ Note the trade-off, and mention it if the user seems to expect otherwise: the re
 
 ## 0. When to run it
 
-Only when the user names Claude as the reviewer. For an unnamed review, `/plan-review:antigravity` is the default.
+Only when the user names Claude as the reviewer — in the request, or by picking `Claude` in one of the two questions of `/plan-review:antigravity`. For an unnamed review, ask that skill's `Reviewer` question first: there is no default reviewer.
 
 The trace rule is the same one the other skills carry: whatever the outcome, the plan document ends up with a `> **Review**: …` line right after its title — section 4 of the response protocol.
 
-This reviewer never starts on its own, and it never goes through the question the Antigravity skill asks when a plan is ready: the user names it, and that is the request. The rest follows the response protocol like the other reviewers: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
+This reviewer never starts on its own. Picked in a question, it is named: that answer is the request, so run it without asking again. Another pass stays with it, unless the user names a different reviewer. The rest follows the response protocol like the other reviewers: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
 
 The timing is the same as the other reviewers': *inside* plan mode, on the plan document, **before** proposing it with `ExitPlanMode`. Plan mode blocks writes, not reads, and the plan document is the one file you may edit — so the *review → choose → revise → propose* loop closes inside plan mode rather than forcing the user to reject a plan just to get it reviewed.
 
@@ -97,7 +97,7 @@ Pick one as **a judgement you state, not a threshold you count**:
 - **standard** — the ordinary case: a plan with architectural consequences, several modules touched, a document past ~10 KB, a repo of some hundreds of files. **In doubt, take the higher tier.**
 - **deep** — a review in depth was asked for; or a previous run hit a ceiling; or the plan rewrites something structural across a large repo.
 
-The signals are free and in hand: the size of the document, how many distinct files and modules the plan names, `git ls-files | wc -l` for the repo. The floor is deliberately not the default — this reviewer runs only when the user names it, and nobody asks a named reviewer for a second opinion on a trivial document, so its runs start above the floor. Say which tier you ran under when it is not the floor: section 5 of the response protocol.
+The signals are free and in hand: the size of the document, how many distinct files and modules the plan names, `git ls-files | wc -l` for the repo. The floor is deliberately not the default — this reviewer runs only when the user names or picks it, and trivial plans get no question, so its runs start above the floor. Say which tier you ran under when it is not the floor: section 5 of the response protocol.
 
 ### The command
 
