@@ -14,6 +14,7 @@ The plugin's *output* follows the language of the conversation or the document. 
 - Branch: `<english-slug>`; on a release, `vX.Y.Z-<english-slug>`, e.g. `v0.8.0-timeout-signature`.
 - Commit title: one sentence on what changed, prefixed `vX.Y.Z: ` on a release. The body is prose: the issue it closes, what was measured and how, and a `Verified:` line listing the checks that actually ran. If the plan was reviewed, say by whom and with what verdict.
 - Every change of behaviour updates the README in the same PR. A finding that cost a run to establish goes into *Known traps*.
+- Release notes and the GitHub release: `/craft-release`, once the release PR is merged. The tag is `vX.Y.Z` on the commit where main first carries the version; GitHub creates it when the user publishes the draft — never `git tag` or `git push --tags` from a session.
 
 ## Things that move together
 
