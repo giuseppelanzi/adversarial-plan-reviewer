@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # ExitPlanMode hook: persists the plan, and flags a plan that declares no review.
 # Always exits 0 — this hook must never block leaving plan mode.
+# It never approves the call and never changes its input: the plan Claude
+# proposed is the plan you see and approve. The notice goes only into the saved
+# copy, and the warning to you goes out as a systemMessage.
 
 set -uo pipefail
 
@@ -8,7 +11,6 @@ INPUT=$(cat)
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$PWD}"
 PLANS_DIR="$PROJECT_DIR/.claude/plans"
 
-TOOL_INPUT=$(printf '%s' "$INPUT" | jq -c '.tool_input // empty' 2>/dev/null)
 PLAN=$(printf '%s' "$INPUT" | jq -r '.tool_input.plan // empty' 2>/dev/null)
 [ -z "$PLAN" ] && exit 0
 
@@ -38,19 +40,11 @@ cp "$PLANS_DIR/$STAMP.md" "$PLANS_DIR/latest.md" 2>/dev/null
 # Trace present: the plan speaks for itself, stay silent.
 [ -z "$NOTICE" ] && exit 0
 
-# No permissionDecision: "allow" would skip the user's approval dialog and "deny"
-# would block the plan. updatedInput is built from the original tool_input with
-# .plan replaced, so any other field ExitPlanMode carries survives.
+# A warning for the user, and nothing else: no permissionDecision, no
+# updatedInput. The plugin directory holds any hook that approves a tool call
+# or changes its input.
 jq -n \
-  --argjson ti "${TOOL_INPUT:-{\}}" \
-  --arg plan "$OUT_PLAN" \
-  --arg msg 'adversarial-plan-reviewer: this plan declares no review. A notice was added at the top of it.' \
-  '{
-     hookSpecificOutput: {
-       hookEventName: "PreToolUse",
-       updatedInput: ($ti | .plan = $plan)
-     },
-     systemMessage: $msg
-   }' 2>/dev/null
+  --arg msg "adversarial-plan-reviewer: this plan declares no review. The copy saved in .claude/plans/$STAMP.md opens with a notice saying so; the plan itself is unchanged." \
+  '{ systemMessage: $msg }' 2>/dev/null
 
 exit 0

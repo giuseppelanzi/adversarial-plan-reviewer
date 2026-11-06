@@ -14,7 +14,7 @@ The plugin's *output* follows the language of the conversation or the document. 
 - Branch: `<english-slug>`; on a release, `vX.Y.Z-<english-slug>`, e.g. `v0.8.0-timeout-signature`.
 - Commit title: one sentence on what changed, prefixed `vX.Y.Z: ` on a release. The body is prose: the issue it closes, what was measured and how, and a `Verified:` line listing the checks that actually ran. If the plan was reviewed, say by whom and with what verdict.
 - Every change of behaviour updates the docs in the same PR: the README when a user would notice it, `docs/internals.md` for how and why. A finding that cost a run to establish goes into *Known traps*, in `docs/internals.md`. Keep the README short: it is the plugin's front page, and detail belongs in `docs/internals.md`.
-- The plugin's `name`, `adversarial-plan-reviewer`, is fixed once the plugin directory lists it: users have it installed under that name. The label shown is `displayName`, which can change. The listing icon is taken from `assets/icon.png` at the first submission only; changing the file later does not change the listing.
+- The plugin's `name`, `adversarial-plan-reviewer`, is fixed once the plugin directory lists it: users have it installed under that name. The label shown is `displayName`, which can change. The listing icon, the PNG in `assets/`, is taken at the first submission only; changing it later does not change the listing. Do not name its file in any text file other than `plugin.json` and the README's image tag: the directory holds the plugin for it (*Known traps*).
 - Release notes and the GitHub release: `/craft-release`, once the release PR is merged. The tag is `vX.Y.Z` on the commit where main first carries the version; GitHub creates it when the user publishes the draft — never `git tag` or `git push --tags` from a session.
 
 ## Things that move together
@@ -36,6 +36,8 @@ The plugin's *output* follows the language of the conversation or the document. 
 - No review started on a plan without the user saying so, unless they asked for one outright. Claude proposes on each point; the user chooses which points to take.
 - No context prepared for the reviewer — no summaries, extracted snippets or curated file lists. The document under review travels inline; the reviewer opens the repo itself.
 - No automatic retry and no fallback to another reviewer on failure. Report the error, offer the alternative in one line, wait.
+- No hook that approves a tool call or changes its input: no `permissionDecision: "allow"`, no `updatedInput`. The plugin directory holds the plugin for it. The hook warns with `systemMessage` and writes only its own copy of the plan.
+- Skill `description`s are double-quoted in the front matter. Unquoted, a `: ` in the text makes it invalid YAML, which Claude Code tolerates and the directory refuses.
 - Nothing inside `.claude-plugin/` except the two manifests. The icon lives in `assets/`, named by `icon` in `plugin.json`.
 
 ## Shell
