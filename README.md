@@ -32,6 +32,8 @@ flowchart TD
 
 ## Install
 
+**Requires Claude Code** on your own machine. The reviewers are command line tools that the plugin runs in your local shell, and the review loop runs in Claude Code's plan mode. In claude.ai chat it has nothing to run them with.
+
 ```
 /plugin marketplace add giuseppelanzi/adversarial-plan-reviewer
 /plugin install adversarial-plan-reviewer@adversarial-plan-reviewer-marketplace
