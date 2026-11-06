@@ -214,7 +214,7 @@ And one limit that does not go away: the critic judges internal consistency and 
 ## Repo layout
 
 ```
-claude-ai-reviewer-plugin/
+adversarial-plan-reviewer/
 ├── .claude-plugin/
 │   ├── plugin.json          plugin manifest — manifests only in here, never content
 │   └── marketplace.json     catalog, so the repo can be installed from itself
@@ -296,7 +296,7 @@ Same as at user level, but in `<repo>/.claude/` instead of `~/.claude/`, with pa
 The repo is a marketplace of itself — `marketplace.json` sits next to the manifest — so it installs from its own directory, with no GitHub in the loop:
 
 ```bash
-claude plugin marketplace add "/local/path/to/claude-ai-reviewer-plugin"
+claude plugin marketplace add "/local/path/to/adversarial-plan-reviewer"
 claude plugin install adversarial-plan-reviewer@adversarial-plan-reviewer-marketplace
 ```
 
@@ -323,7 +323,7 @@ Every version keeps its own folder in the cache and nothing prunes the old ones,
 For a tight edit-and-test loop, skip installation entirely. This reads the directory live — no version bumps, no cache, no reload:
 
 ```bash
-claude --plugin-dir "/local/path/to/claude-ai-reviewer-plugin"
+claude --plugin-dir "/local/path/to/adversarial-plan-reviewer"
 ```
 
 Before a release, check the manifests and what the plugin directory would refuse:

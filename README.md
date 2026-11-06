@@ -33,7 +33,7 @@ flowchart TD
 ## Install
 
 ```
-/plugin marketplace add giuseppelanzi/claude-ai-reviewer-plugin
+/plugin marketplace add giuseppelanzi/adversarial-plan-reviewer
 /plugin install adversarial-plan-reviewer@adversarial-plan-reviewer-marketplace
 ```
 
