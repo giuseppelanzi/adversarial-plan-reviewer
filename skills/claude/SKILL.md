@@ -1,6 +1,6 @@
 ---
 name: claude
-description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Claude as the reviewer — "a second Claude", Claude Code itself — in the request, or by picking it in a question of /plan-review:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
+description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Claude as the reviewer — "a second Claude", Claude Code itself — in the request, or by picking it in a question of /adversarial-plan-reviewer:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
 ---
 
 # Plan review — headless Claude Code
@@ -11,7 +11,7 @@ Note the trade-off, and mention it if the user seems to expect otherwise: the re
 
 ## 0. When to run it
 
-Only when the user names Claude as the reviewer — in the request, or by picking `Claude` in one of the two questions of `/plan-review:antigravity`. For an unnamed review, ask that skill's `Reviewer` question first: there is no default reviewer.
+Only when the user names Claude as the reviewer — in the request, or by picking `Claude` in one of the two questions of `/adversarial-plan-reviewer:antigravity`. For an unnamed review, ask that skill's `Reviewer` question first: there is no default reviewer.
 
 The trace rule is the same one the other skills carry: whatever the outcome, the plan document ends up with a `> **Review**: …` line right after its title — section 4 of the response protocol.
 

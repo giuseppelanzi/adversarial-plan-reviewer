@@ -1,6 +1,6 @@
 ---
 name: codex
-description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to OpenAI Codex CLI (`codex exec`) as an adversarial reviewer in a read-only sandbox; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Codex or OpenAI as the reviewer — in the request, or by picking it in a question of /plan-review:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
+description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to OpenAI Codex CLI (`codex exec`) as an adversarial reviewer in a read-only sandbox; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Codex or OpenAI as the reviewer — in the request, or by picking it in a question of /adversarial-plan-reviewer:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
 ---
 
 # Plan review — Codex CLI
@@ -11,7 +11,7 @@ It is a different vendor's model from yours — OpenAI's, as Antigravity's is Go
 
 ## 0. When to run it
 
-Only when the user names Codex — or OpenAI — as the reviewer, in the request, or by picking `Codex` in one of the two questions of `/plan-review:antigravity`. For an unnamed review, ask that skill's `Reviewer` question first: there is no default reviewer.
+Only when the user names Codex — or OpenAI — as the reviewer, in the request, or by picking `Codex` in one of the two questions of `/adversarial-plan-reviewer:antigravity`. For an unnamed review, ask that skill's `Reviewer` question first: there is no default reviewer.
 
 This reviewer never starts on its own. Picked in a question, it is named: that answer is the request, so run it without asking again. Another pass stays with it, unless the user names a different reviewer. The rest follows the response protocol like the other reviewers: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
 
@@ -25,7 +25,7 @@ Three checks before the **first** review of a conversation. All are cheap, and e
 
 ### The tool
 
-Run `codex --version` first. If the command is missing, say so and offer `/plan-review:antigravity` or `/plan-review:claude` in one line — but do not run either yourself. Stamp the plan — no Codex run happened, so there is no Codex error to quote:
+Run `codex --version` first. If the command is missing, say so and offer `/adversarial-plan-reviewer:antigravity` or `/adversarial-plan-reviewer:claude` in one line — but do not run either yourself. Stamp the plan — no Codex run happened, so there is no Codex error to quote:
 
 ```
 > **Review**: Codex not run — `codex` not found.

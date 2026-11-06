@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Source of assets/icon.png: rsvg-convert -w 1024 -h 1024 assets/icon-source.svg -o assets/icon.png -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#262D4F"/>
+      <stop offset="1" stop-color="#11152A"/>
+    </linearGradient>
+    <g id="sheet">
+      <path d="M248 160 H584 L760 336 V808 Q760 864 704 864 H304 Q248 864 248 808 V216 Q248 160 304 160 Z" fill="#F5F1E8"/>
+      <path d="M584 160 V280 Q584 336 640 336 H760 Z" fill="#D3CCBD"/>
+      <rect x="328" y="400" width="352" height="40" rx="20" fill="#A7ACBD"/>
+      <rect x="328" y="488" width="288" height="40" rx="20" fill="#A7ACBD"/>
+      <rect x="328" y="576" width="328" height="40" rx="20" fill="#FF6B4A"/>
+      <rect x="328" y="664" width="216" height="40" rx="20" fill="#A7ACBD"/>
+    </g>
+    <clipPath id="lens">
+      <circle cx="600" cy="596" r="138"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <use xlink:href="#sheet"/>
+
+  <!-- the lens magnifies the flagged line -->
+  <g clip-path="url(#lens)">
+    <rect x="440" y="436" width="320" height="320" fill="#F5F1E8"/>
+    <g transform="translate(600 596) scale(1.3) translate(-600 -596)">
+      <use xlink:href="#sheet"/>
+    </g>
+  </g>
+  <circle cx="600" cy="596" r="160" fill="none" stroke="#FF6B4A" stroke-width="44"/>
+  <line x1="726" y1="722" x2="830" y2="826" stroke="#FF6B4A" stroke-width="76" stroke-linecap="round"/>
+</svg>

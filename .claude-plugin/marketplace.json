@@ -1,13 +1,13 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "plan-review-marketplace",
+  "name": "adversarial-plan-reviewer-marketplace",
   "description": "Adversarial review of Claude Code plans: an external model critiques the plan against the real code, Claude proposes on each point and you choose which to take.",
-  "owner": { "name": "Giuseppe" },
+  "owner": { "name": "Giuseppe Lanzi", "url": "https://github.com/giuseppelanzi" },
   "plugins": [
     {
-      "name": "plan-review",
+      "name": "adversarial-plan-reviewer",
       "source": "./",
-      "description": "Adversarial review of plans by an external reviewer.",
+      "description": "Adversarial review of plans by an external reviewer that reads your repository read-only.",
       "category": "code-review"
     }
   ]

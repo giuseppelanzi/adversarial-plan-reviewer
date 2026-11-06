@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Working conventions for this repo. The README is the source of truth for how the plugin behaves and why; this file only holds what is needed to change it without breaking it. Read the README's *Known traps* before touching a skill.
+Working conventions for this repo. The README and `docs/internals.md` are the source of truth for how the plugin behaves and why: the README for what a user sees and does, `docs/internals.md` for how it works, *Known traps* included. This file only holds what is needed to change it without breaking it. Read *Known traps* in `docs/internals.md` before touching a skill.
 
 ## Language
 
@@ -13,7 +13,8 @@ The plugin's *output* follows the language of the conversation or the document. 
 - The user decides when to bump `version` in `.claude-plugin/plugin.json`. Never bump it unasked, not even to test an installed copy — use `claude --plugin-dir .` or uninstall/install instead (see *Verifying a change*).
 - Branch: `<english-slug>`; on a release, `vX.Y.Z-<english-slug>`, e.g. `v0.8.0-timeout-signature`.
 - Commit title: one sentence on what changed, prefixed `vX.Y.Z: ` on a release. The body is prose: the issue it closes, what was measured and how, and a `Verified:` line listing the checks that actually ran. If the plan was reviewed, say by whom and with what verdict.
-- Every change of behaviour updates the README in the same PR. A finding that cost a run to establish goes into *Known traps*.
+- Every change of behaviour updates the docs in the same PR: the README when a user would notice it, `docs/internals.md` for how and why. A finding that cost a run to establish goes into *Known traps*, in `docs/internals.md`. Keep the README short: it is the plugin's front page, and detail belongs in `docs/internals.md`.
+- The plugin's `name`, `adversarial-plan-reviewer`, is fixed once the plugin directory lists it: users have it installed under that name. The label shown is `displayName`, which can change. The listing icon is taken from `assets/icon.png` at the first submission only; changing the file later does not change the listing.
 - Release notes and the GitHub release: `/craft-release`, once the release PR is merged. The tag is `vX.Y.Z` on the commit where main first carries the version; GitHub creates it when the user publishes the draft — never `git tag` or `git push --tags` from a session.
 
 ## Things that move together
@@ -23,9 +24,9 @@ The plugin's *output* follows the language of the conversation or the document. 
 - **The two critics.** `reviewers/plan-critic.md` and `reviewers/doc-critic.md` keep identical severity levels and pass bar (`FAIL` iff at least one `[BLOCKING]`), and the same rule that a path outside the repository is not opened but listed under *What I could not verify* — the only fence on the Codex side, where such reads are not refused. They differ only in what counts as evidence and in what `[BLOCKING]` means.
 - **The tier.** On the Claude side the timeout and `--max-turns` are one unit; raising one alone buys nothing. On the Codex side the tier is the external `timeout` alone, and it is required: Codex has no turn cap and no clock of its own.
 - **The trace.** The `> **Review**:` stamp is defined in `reviewers/response-protocol.md` section 4, the *not run* lines — trivial plan, user declined — in the `description` of `skills/antigravity`, the backstop in `hooks/save-plan.sh`. The not-started stamps — `agy` not found, agent missing or outdated; `codex` not found, no `timeout` / `gtimeout` — appear in both section 4 and the section 1 of their skill.
-- **The questions.** Two, and each has a question, a header and its options: `Review`, on a ready plan, with four — the three reviewers and `Approve without review`; `Reviewer`, on a request that names no reviewer, with the three reviewers alone. Both are written in the `description` of `skills/antigravity` — without the `Reviewer` wording, for room — and again in full in its section 0, with the one map from answer to skill; so is the rule that proposes plan mode before a non-trivial change made outside it. The `description`s of `skills/claude` and `skills/codex` point back to those questions: a reviewer picked in one is named. The `description` is the copy that counts: it is the only text in context when the skill never loads — and outside plan mode it never does. It is cut at about 1,500 characters (README, *Known traps*): keep it under ~1,450, and make room before adding.
+- **The questions.** Two, and each has a question, a header and its options: `Review`, on a ready plan, with four — the three reviewers and `Approve without review`; `Reviewer`, on a request that names no reviewer, with the three reviewers alone. Both are written in the `description` of `skills/antigravity` — without the `Reviewer` wording, for room — and again in full in its section 0, with the one map from answer to skill; so is the rule that proposes plan mode before a non-trivial change made outside it. The `description`s of `skills/claude` and `skills/codex` point back to those questions: a reviewer picked in one is named. The `description` is the copy that counts: it is the only text in context when the skill never loads — and outside plan mode it never does. It is cut at about 1,500 characters (`docs/internals.md`, *Known traps*): keep it under ~1,450, and make room before adding.
 - **The reviewer agent.** `reviewers/agy-plan-reviewer.md` and the copy the user installs in `~/.gemini/config/agents/plan-reviewer.md`. The preflight compares them byte for byte, so any edit to the shipped file asks every user to copy it again — say so in the commit.
-- **The model pin.** `gemini-4-argon-high` in both bash blocks of `skills/antigravity`, in the README and in the stamp examples of the response protocol. On the Codex side, `gpt-6.1-sol` with `model_reasoning_effort="high"` — one setting — in both bash blocks of `skills/codex`, in the README and in the response protocol.
+- **The model pin.** `gemini-4-argon-high` in both bash blocks of `skills/antigravity`, in the README, in `docs/internals.md` and in the stamp examples of the response protocol. On the Codex side, `gpt-6.1-sol` with `model_reasoning_effort="high"` — one setting — in both bash blocks of `skills/codex`, in the README, in `docs/internals.md` and in the response protocol.
 
 ## Things this repo does not do
 
@@ -35,7 +36,7 @@ The plugin's *output* follows the language of the conversation or the document. 
 - No review started on a plan without the user saying so, unless they asked for one outright. Claude proposes on each point; the user chooses which points to take.
 - No context prepared for the reviewer — no summaries, extracted snippets or curated file lists. The document under review travels inline; the reviewer opens the repo itself.
 - No automatic retry and no fallback to another reviewer on failure. Report the error, offer the alternative in one line, wait.
-- Nothing inside `.claude-plugin/` except the two manifests.
+- Nothing inside `.claude-plugin/` except the two manifests. The icon lives in `assets/`, named by `icon` in `plugin.json`.
 
 ## Shell
 
@@ -50,7 +51,7 @@ The Bash tool runs zsh, and the skills' bash runs there too:
 
 ## Verifying a change
 
-- `claude plugin validate .` — the manifests.
+- `claude plugin validate . --profile directory` — the manifests, and anything the plugin directory would refuse a submission for.
 - `claude --plugin-dir .` — live loop, no install. `SKILL.md` edits apply at once; `hooks/` edits need `/reload-plugins`.
 - An installed copy is under `~/.claude/plugins/cache/`. `claude plugin update` compares only the version string, so without a bump it reports `already at the latest version` and reloads nothing; force the copy with `plugin uninstall` + `plugin install`, then restart.
 - Judge a reviewer run by its output, never its exit code: an empty agy run exits 0, a failed `claude -p` run sets `.is_error` while exiting 0, and a codex run is the `VERDICT:` in its `--output-last-message` file — after the exit code, since `124` is the ceiling and a failed run whatever the file holds — never its stdout, which is the event stream.

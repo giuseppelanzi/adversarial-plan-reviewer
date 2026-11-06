@@ -21,7 +21,7 @@ HEAD=$(printf '%s\n' "$PLAN" | head -n 10)
 NOTICE=""
 if ! grep -q '^> \*\*Review\*\*:' <<<"$HEAD"; then
   NOTICE="${PLAN_REVIEW_NOTICE:-> **Review**: no review declared for this plan.
-> (plan-review hook: the skill left no trace — either the review did not run, or it ran and was not declared.)}"
+> (adversarial-plan-reviewer hook: the skill left no trace — either the review did not run, or it ran and was not declared.)}"
 fi
 
 OUT_PLAN="$PLAN"
@@ -44,7 +44,7 @@ cp "$PLANS_DIR/$STAMP.md" "$PLANS_DIR/latest.md" 2>/dev/null
 jq -n \
   --argjson ti "${TOOL_INPUT:-{\}}" \
   --arg plan "$OUT_PLAN" \
-  --arg msg 'plan-review: this plan declares no review. A notice was added at the top of it.' \
+  --arg msg 'adversarial-plan-reviewer: this plan declares no review. A notice was added at the top of it.' \
   '{
      hookSpecificOutput: {
        hookEventName: "PreToolUse",
