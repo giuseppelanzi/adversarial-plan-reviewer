@@ -1,5 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Source of assets/icon.png: rsvg-convert -w 1024 -h 1024 assets/icon-source.svg -o assets/icon.png -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#262D4F"/>

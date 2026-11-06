@@ -168,7 +168,7 @@ That is the case where it matters most. A plan that was never verified but looks
 
 Rules:
 
-- `**Review**:` is a **fixed marker**. Keep those two words in English whatever language the document is in, and keep the block inside the **first ten lines**. The hook greps for exactly that: a block written further down, or with the word translated, reads to it as no declaration at all, and it prepends its own notice on top of yours.
+- `**Review**:` is a **fixed marker**. Keep those two words in English whatever language the document is in, and keep the block inside the **first ten lines**. The hook greps for exactly that: a block written further down, or with the word translated, reads to it as no declaration at all: it warns the user and puts its own notice on top of yours in the copy it saves.
 - **One block only.** A later pass rewrites it and names itself (`second pass`); it does not stack. If the document already opens with a `> **Review**:` block — the provisional one of phase A, or the hook's own notice on `latest.md` — replace it.
 - **Which document.** The plan document of the current plan mode session, or `.claude/plans/latest.md`. Never a document the user wrote themselves: for `docs/auth-analysis.md` the review is reported in the conversation only. Writing into someone's own file uncalled-for is a surprise.
 

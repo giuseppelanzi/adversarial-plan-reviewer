@@ -1,6 +1,6 @@
 ---
 name: claude
-description: Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Claude as the reviewer — "a second Claude", Claude Code itself — in the request, or by picking it in a question of /adversarial-plan-reviewer:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language.
+description: "Submits a plan, or any document — an analysis, a specification, a proposal, a decision note — to a separate headless Claude Code instance as an adversarial reviewer with read-only access to the repo; you then propose what to do with each point and the user chooses which points to take. Use this skill only when the user names Claude as the reviewer — \"a second Claude\", Claude Code itself — in the request, or by picking it in a question of /adversarial-plan-reviewer:antigravity. With no reviewer named, ask that question first. On a plan, this runs during plan mode, on the plan document, before proposing the plan with ExitPlanMode — not after. Requests may come in any language."
 ---
 
 # Plan review — headless Claude Code
