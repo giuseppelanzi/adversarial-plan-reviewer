@@ -99,7 +99,7 @@ A range between two commits reads committed objects only, so uncommitted work
 in the tree cannot leak into the notes.
 
 The user here is someone who installed the plugin. Changes to `CLAUDE.md`,
-`.claude/`, `.gitignore`, and to the README alone with no behaviour behind them,
+`.claude/`, `.gitignore`, and to the README or `docs/` alone with no behaviour behind them,
 are internal: leave them out.
 
 Read the template in template.md and follow that format. Categorize into: new

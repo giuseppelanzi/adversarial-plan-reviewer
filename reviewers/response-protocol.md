@@ -1,6 +1,6 @@
 # Response protocol
 
-Shared by the reviewer skills of the `plan-review` plugin. Applies once the reviewer's output is back.
+Shared by the reviewer skills of the `adversarial-plan-reviewer` plugin. Applies once the reviewer's output is back.
 
 The reviewer critiques, you propose, **the user decides**. You say what you would do with each point and why; the user chooses which points to take; you act on those and nothing else. That takes two turns, because you cannot know their choice until it arrives: **phase A** (sections 2 and 3, up to the question) right after the review, **phase B** (the rest of section 3, then sections 4 and 5) after their answer.
 
