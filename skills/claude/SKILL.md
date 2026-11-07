@@ -45,7 +45,7 @@ Half a minute, and it settles in one turn what otherwise fails at the end of a l
 
 **The probe is not a review.** No critic, no verdict, and it never counts toward files read.
 
-**Why this side has nothing to forward.** On the agy transport the tool set is fixed too, by the `plan-reviewer` agent, and what can still stop a review there is a read outside the workspace, which that skill reports with `--add-dir` as the remedy. Here the tool set is decided on the command line — `--allowedTools "Read,Grep,Glob"`, `--disallowedTools "Write,Edit,Bash"` — so the reviewer never asks for anything: it reads, or the run fails for a reason that has nothing to do with permissions. That is also why this probe is cheaper to trust and why a failure here points at credentials, quota or the turn ceiling instead.
+**Why this side has nothing to forward.** On the agy transport the tool set is fixed too, by the `plan-reviewer` agent and the command list it runs under, and what can still stop a review there is a refused read outside the workspace, which that skill reports with `--add-dir` as the remedy, or a command outside the list. Here the tool set is decided on the command line — `--allowedTools "Read,Grep,Glob"`, `--disallowedTools "Write,Edit,Bash"` — so the reviewer never asks for anything: it reads, or the run fails for a reason that has nothing to do with permissions. That is also why this probe is cheaper to trust and why a failure here points at credentials, quota or the turn ceiling instead.
 
 ## 2. Locate the document, then pick the critic
 

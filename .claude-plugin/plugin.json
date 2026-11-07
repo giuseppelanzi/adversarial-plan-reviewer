@@ -1,7 +1,7 @@
 {
   "name": "adversarial-plan-reviewer",
   "displayName": "Adversarial Plan Reviewer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Adversarial review of Claude Code plans by an external reviewer (Antigravity CLI, headless Claude Code or Codex CLI) that reads your repository read-only: Claude proposes on each point, you choose which to take.",
   "author": { "name": "Giuseppe Lanzi", "url": "https://github.com/giuseppelanzi" },
   "homepage": "https://github.com/giuseppelanzi/adversarial-plan-reviewer",
