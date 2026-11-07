@@ -26,7 +26,7 @@ flowchart TD
 ```
 
 - **Three reviewers, none the default.** Antigravity, Codex or headless Claude Code; you pick one each time. A model from another vendor does not share Claude's blind spots. A second Claude does, but it checks a plan against the code just as carefully.
-- **Read-only.** The reviewer cannot change anything. Each one is locked down in its own way: Antigravity runs as an agent with no shell, Claude with a read-only tool allowlist, Codex inside the operating system's sandbox.
+- **Read-only.** The reviewer cannot change anything. Each one is locked down in its own way: Antigravity runs as an agent whose only commands are six read-only ones, set on every run, Claude with a read-only tool allowlist, Codex inside the operating system's sandbox.
 - **Evidence, not opinions.** Every point cites a `file:line` and carries a label: `[BLOCKING]`, `[SHOULD-FIX]` or `[NOTE]`. The verdict is `FAIL` if and only if at least one point is blocking.
 - **A trace in the plan.** A `> **Review**:` line under the plan's title says whether the review ran, failed or was skipped, and it stays in the plan you approve.
 
@@ -43,7 +43,7 @@ Then set up at least one reviewer. You only need the ones you plan to use.
 
 | Reviewer | Command line tool | One-time setup |
 |---|---|---|
-| Antigravity | `agy` | Log in once by running `agy` in a terminal. Install the read-only reviewer agent: the first review gives you the command. |
+| Antigravity | `agy` 1.5 or later | Log in once by running `agy` in a terminal. Install the read-only reviewer agent: the first review gives you the command. |
 | Codex | `codex`, plus `timeout` or `gtimeout` | `codex login` |
 | Claude | `claude`, already there | none |
 
@@ -65,7 +65,7 @@ To turn all of this off for a while, disable the plugin from `/plugin`.
 The plugin has no server and collects nothing. The reviewer is a command line tool you installed, and it runs under your own account with that vendor:
 
 - **What is sent:** the plan or document under review, and every file the reviewer opens in your repository. It goes to Google for Antigravity, OpenAI for Codex, Anthropic for Claude, under the terms of your account with them.
-- **Where the reviewer can read:** Antigravity refuses to read outside the repository. Codex does not: its sandbox blocks writes, not reads. Only the critic's instructions keep it inside the repository.
+- **Where the reviewer can read:** Antigravity cannot read your home folder outside the repository, but it can read temporary and system folders such as `/tmp` and `/etc`. Codex can read anywhere: its sandbox blocks writes, not reads. Beyond that, only the critic's instructions keep either one inside the repository.
 - **Repository instructions:** Codex reads the repository's `AGENTS.md` as instructions, and headless Claude reads `CLAUDE.md`.
 
 ## Usage
