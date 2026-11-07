@@ -53,12 +53,10 @@ About the Antigravity agent: it lives in agy's own configuration, which a Claude
 
 ## What changes once it is installed
 
-The plugin is active in every repository you open with Claude Code, not only the one you install it from. Four things change:
+The plugin is active in every repository you open with Claude Code, not only the one you install it from. It writes nothing into your projects. Two things change:
 
 - **A question on every non-trivial plan.** When a plan is ready, Claude asks: *The plan is ready. Send it to a reviewer before approving it?*, with `Antigravity`, `Codex`, `Claude` and `Approve without review`. Trivial plans get no question: a rename, a one-line fix, a mechanical edit to one file.
 - **Plan mode, proposed.** Outside plan mode, before a non-trivial change, Claude proposes switching to plan mode. If you decline, it carries on as you asked, without a review. If you have already told it to go ahead without a plan, it does not propose it.
-- **A folder in each project.** Every plan Claude proposes is saved under `.claude/plans/` in the current repository: one timestamped copy per plan, plus `latest.md`. The plugin never edits your `.gitignore`, so add `.claude/plans/` to your global gitignore once.
-- **A warning on plans with no trace.** If a plan reaches the approval dialog without a `> **Review**:` line, a hook warns you in the terminal and marks the copy it saved in `.claude/plans/`. It never blocks a plan, never approves one, and never edits the plan you approve.
 
 To turn all of this off for a while, disable the plugin from `/plugin`.
 
@@ -109,7 +107,6 @@ The line takes one of four forms: the review **ran**, it **failed** (`Plan NOT v
 - **Critic prompts:** `reviewers/plan-critic.md` and `reviewers/doc-critic.md`. Every reviewer uses the same two, so you can compare reviewers on the same document.
 - **Models:** Antigravity uses `gemini-4-argon-high` and Codex uses `gpt-6.1-sol` at high effort. Override them with `PLAN_REVIEW_MODEL` and `PLAN_REVIEW_CODEX_MODEL`.
 - **Time limits:** each review gets 5, 15 or 30 minutes, chosen from the size of the document and of the repository. Override with `PLAN_REVIEW_TIMEOUT`, in seconds, and on the Claude side `PLAN_REVIEW_MAX_TURNS`.
-- **The hook's notice:** the line at the top of a saved plan that declares no review. Override its text with `PLAN_REVIEW_NOTICE`.
 
 Set the variables in the environment you start Claude Code from.
 

@@ -100,7 +100,7 @@ One escalation, as a judgement you state rather than a threshold you count: if t
 
 ## 4. Stamp the document
 
-The close below lives in the conversation and scrolls away. The plan document does not: it is what the user approves, and what the `ExitPlanMode` hook archives into `.claude/plans/`. So the outcome goes there too, immediately after the document's `#` title.
+The close below lives in the conversation and scrolls away. The plan document does not: it is what the user approves, and Claude Code keeps it under `~/.claude/plans/`. So the outcome goes there too, immediately after the document's `#` title.
 
 **In phase A** the block is provisional, so that the plan never looks unreviewed while the user chooses. It is the one change to the document in that phase:
 
@@ -168,9 +168,9 @@ That is the case where it matters most. A plan that was never verified but looks
 
 Rules:
 
-- `**Review**:` is a **fixed marker**. Keep those two words in English whatever language the document is in, and keep the block inside the **first ten lines**. The hook greps for exactly that: a block written further down, or with the word translated, reads to it as no declaration at all: it warns the user and puts its own notice on top of yours in the copy it saves.
-- **One block only.** A later pass rewrites it and names itself (`second pass`); it does not stack. If the document already opens with a `> **Review**:` block — the provisional one of phase A, or the hook's own notice on `latest.md` — replace it.
-- **Which document.** The plan document of the current plan mode session, or `.claude/plans/latest.md`. Never a document the user wrote themselves: for `docs/auth-analysis.md` the review is reported in the conversation only. Writing into someone's own file uncalled-for is a surprise.
+- `**Review**:` is a **fixed marker**. Keep those two words in English whatever language the document is in, right after the title. A later pass finds the block by that exact marker to replace it: translated, or written further down, it reads as no block at all, and the pass stacks a second one on top.
+- **One block only.** A later pass rewrites it and names itself (`second pass`); it does not stack. If the document already opens with a `> **Review**:` block — the provisional one of phase A, or a previous pass's — replace it.
+- **Which document.** The plan document of a plan mode session of this conversation: the current one or, after plan mode, the last one. Never a document the user wrote themselves: for `docs/auth-analysis.md` the review is reported in the conversation only. Writing into someone's own file uncalled-for is a surprise.
 
   **This rule keys on the document, never on the critic.** `docs/auth-analysis.md` is an analysis of this codebase, so it runs under `plan-critic.md` — and it still gets no stamp, because it is the user's file. Read the condition the other way round, as *"plan-critic ran, therefore stamp"*, and you end up writing into documents nobody asked you to touch. Only a plan is stamped, whichever critic reviewed it.
 - Everything except the marker and the `PASS`/`FAIL`/`BLOCKING`/`SHOULD-FIX`/`NOTE` labels follows the language of the document.

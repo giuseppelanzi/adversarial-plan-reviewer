@@ -21,19 +21,11 @@ The [README](../README.md) covers what you see. This is how the plugin works and
 
 Plan mode blocks writes, not reads, so the reviewer runs from inside it — and the plan document is the one file Claude may edit there. That is what lets the *review → choose → revise → propose* loop close before the plan reaches the approval dialog. Without it the only way to get a plan reviewed is to propose it, **reject** it to get the turn back, and then ask for the review.
 
-You can still ask for one at any other moment — *"review the plan"*, *"review docs/auth-analysis.md"*. That path is what the hook serves: it writes every proposed plan to `.claude/plans/latest.md` **in the current repo**, on the proposal and *before* you approve it. It costs milliseconds, blocks nothing, and calls no model.
+You can still ask for one at any other moment — *"review the plan"*, *"review docs/auth-analysis.md"*. After you have left plan mode, the skill reviews the plan file of this conversation's last plan mode session: Claude Code keeps it on disk after approval, at the path the plan mode instructions named. If that path is no longer in the conversation — after a compaction, say — the skill asks you rather than guess.
 
 ### Where the plans end up
 
-Always in the repo you are working on, never in the plugin:
-
-```
-<repo>/.claude/plans/
-├── 20260829-143012.md
-└── latest.md          ← the one the skill reads
-```
-
-This is the only thing the system writes into your projects. Add `.claude/plans/` to your `.gitignore`, or put it in your global gitignore once and forget it.
+Where Claude Code puts them: `~/.claude/plans/`, one file per plan mode session, or wherever `plansDirectory` in your settings says. The plugin writes nothing into your projects.
 
 ### The trace it leaves in the plan
 
@@ -45,14 +37,11 @@ As far as the plan is concerned, a review you cannot see did not happen. So the 
 > Plan rewritten on the points taken; another pass recommended (BLOCKING taken).
 ```
 
-Four shapes, and one of them is always there: the review **ran** (verdict, files read, the points you took and set aside, what changed in the plan — and, while you are still choosing, a provisional *awaiting the user's choice*), it **failed** (which reviewer, which error, `Plan NOT verified`), it **never started** (`agy` not found, or the reviewer agent missing or outdated; `codex` not found, or no `timeout` for it; `Plan NOT verified`), or it was **not run** — for a trivial plan with the reason, or exactly *"the user chose to skip the review"*. Unlike the summary in the chat, the block survives into `.claude/plans/` and into the plan you approve.
+Four shapes, and one of them is always there: the review **ran** (verdict, files read, the points you took and set aside, what changed in the plan — and, while you are still choosing, a provisional *awaiting the user's choice*), it **failed** (which reviewer, which error, `Plan NOT verified`), it **never started** (`agy` not found, or the reviewer agent missing or outdated; `codex` not found, or no `timeout` for it; `Plan NOT verified`), or it was **not run** — for a trivial plan with the reason, or exactly *"the user chose to skip the review"*. Unlike the summary in the chat, the block survives into the plan you approve, under `~/.claude/plans/`.
 
-Two things write it, and it takes both:
+One thing writes it: **the skill**, the only one that knows what actually happened. Its rules live in `reviewers/response-protocol.md` (review ran, or failed) and in the `description` of `skills/antigravity` (review not run — that `description` is the plugin's only text that stays in context even when the skill never loads, which is exactly what happens when you decline the review).
 
-- **The skill**, the only one that knows what actually happened. Its rules live in `reviewers/response-protocol.md` (review ran, or failed) and in the `description` of `skills/antigravity` (review not run — that `description` is the plugin's only text that stays in context even when the skill never loads, which is exactly what happens when you decline the review).
-- **The hook**, as a backstop. On `ExitPlanMode` it greps the first ten lines for `> **Review**:`; if the line is missing it warns you with a `systemMessage` and puts a notice of its own at the top of the copy it saves in `.claude/plans/`. It never blocks, never approves and never edits the plan — it sets no `permissionDecision` and no `updatedInput`, so the approval dialog shows the plan exactly as Claude proposed it. What it cannot do is say *why* there was no review: it only reports that nothing was declared. Its wording is overridable with `PLAN_REVIEW_NOTICE`.
-
-The second layer exists because the first is a rule addressed to a model, and this repo has already watched one of those get skipped. It is the weaker layer by design: its notice reaches you in the terminal and in the saved copy, not in the plan you approve (*Known traps*).
+Up to 1.0.1 a hook on `ExitPlanMode` was a second layer: it flagged a plan that reached approval with no `> **Review**:` line. The plugin directory refuses command hooks from unverified organizations, so 1.1.0 removed it (*Known traps*). The trace now rests on a rule addressed to a model, and this repo has watched one of those get skipped: a plan with no line under its title had no review declared, and nothing else will tell you so.
 
 ### When it runs
 
@@ -61,9 +50,7 @@ The second layer exists because the first is a rule addressed to a model, and th
 
 The cost is why the question exists: a review is an external model call of up to half an hour, in the middle of planning. On an architectural plan that is often time well spent — and it is yours to spend.
 
-The hook is deliberately on `PreToolUse`, not `PostToolUse`. Saving on approval would only give you the document once the plan is already starting — which is the wrong moment, since the whole point is to review before committing to it. On `PreToolUse` the file exists as soon as the plan is on the table, so the after-the-fact path works too: reject the plan, ask for the review, iterate. The cost is that `latest.md` also holds plans you turned down; the next proposal overwrites it, so it tracks the most recent plan rather than the last approved one.
-
-It fires on `ExitPlanMode` and nothing else, so outside plan mode there is no backstop at all: whether plan mode gets proposed rests entirely on Claude following the rule in the `description`. `EnterPlanMode` itself works from auto mode — measured on Claude Code 2.1.311 — but whether Claude reaches for it is model behaviour, not a guarantee.
+Whether plan mode gets proposed outside it rests entirely on Claude following the rule in the `description`. `EnterPlanMode` itself works from auto mode — measured on Claude Code 2.1.311 — but whether Claude reaches for it is model behaviour, not a guarantee.
 
 ---
 
@@ -110,7 +97,6 @@ If a reviewer's CLI fails — not logged in, a read refused, missing binary or a
 
   The selection rule lives in section 3 of each skill: a judgement from the size of the document, how many files and modules the plan names, and the size of the repo, with the higher tier taken in doubt. The floor is deliberately *not* the default — the review runs only on non-trivial plans, since trivial ones skip the question, so its runs start above it. Per-run overrides: `PLAN_REVIEW_TIMEOUT` (seconds, bare integer, every skill) and `PLAN_REVIEW_MAX_TURNS` (the Claude side only, where the two numbers are one unit).
 - **When it asks**: the trivial/non-trivial line lives in the `description` of `skills/antigravity`, and it decides two things — outside plan mode, whether Claude proposes entering it before a change; with a plan ready, whether Claude asks you or writes the *not run* line straight away. Widen or narrow it there, and both move.
-- **The hook's notice**: the text at the top of the saved copy of a plan that declares no review. Fixed English string in `hooks/save-plan.sh`, overridable per environment with `PLAN_REVIEW_NOTICE`. The skill's own trace follows the language of the plan; the hook cannot know it.
 - **Language**: the instructions are in English, the output follows the language of the conversation or of the document. The rule is written in three places — both critic prompts and the response protocol. It applies to the critics' section headings too: on an Italian document `## Sources read` comes back as `## Fonti lette`, which is why the response protocol matches that section by role rather than by its exact English name.
 
 ---
@@ -180,24 +166,19 @@ If a reviewer's CLI fails — not logged in, a read refused, missing binary or a
 
 - **Codex refuses a directory that is not a git repository.** Exit 1, no events: `Not inside a trusted directory and --skip-git-repo-check was not specified.` Adding the flag is the user's call, never the skill's.
 
-- **`$CLAUDE_PROJECT_DIR` is a hook variable, not a shell one.** It is set for hook commands, but it is empty in the shell the skill runs its bash in. `cd "$CLAUDE_PROJECT_DIR"` then silently stays put, and `$CLAUDE_PROJECT_DIR/.claude/plans/latest.md` resolves to `/.claude/plans/latest.md`. The skills use `${CLAUDE_PROJECT_DIR:-$PWD}`.
+- **`$CLAUDE_PROJECT_DIR` is a hook variable, not a shell one.** It is set for hook commands, but it is empty in the shell the skill runs its bash in. `cd "$CLAUDE_PROJECT_DIR"` then silently stays put, and any path built on it starts at `/`. The skills use `${CLAUDE_PROJECT_DIR:-$PWD}`.
 - **`agy -p` swallows the next argument as its prompt.** Every other flag goes *before* `-p`. `agy -p --mode plan "..."` takes `--mode` as the prompt and drops the real one.
 - **`.result` on the Claude side**, and `.is_error` is set on a failed run that still exits 0. Reading the wrong field yields empty output and no error.
 - **`--max-turns` is undocumented.** It works on `claude -p` but does not appear in `claude --help`. If a future version rejects it, drop the flag rather than the review.
 - **`${PIPESTATUS[0]}` is bash-only.** Claude Code's Bash tool runs zsh, where that expands to nothing and the exit code silently vanishes (zsh spells it `$pipestatus[1]`, 1-indexed). The skills redirect the reviewer's output to a file and read plain `$?` instead of piping into `jq`.
 - **`claude -p` waits on stdin.** Without `</dev/null` it blocks 3 seconds and warns `no stdin data received in 3s`. Every skill redirects stdin, and `codex exec` needs it as much: it reads stdin even when the prompt is an argument (`Reading additional input from stdin...`). The prompt is an argument, never piped.
 - **`${CLAUDE_PLUGIN_ROOT}` is substituted into the SKILL.md text, not read from the environment.** Claude Code expands it when it loads the skill, so by the time the instructions arrive the path is already absolute and the literal string never reaches a shell. It is reliable in skills for that reason — it is how the preflight hands you the agent's `cp` command with the real cache path. The *environment variable* of the same name is a different thing and is empty in the shell the Bash tool runs, so a script that generates a command at runtime cannot use it. Note the substitution applies to the braced form `${CLAUDE_PLUGIN_ROOT}`; `$CLAUDE_PLUGIN_ROOT` written bare is left alone.
-- **Plugin edits reach a running session only under `--plugin-dir`.** There, changes to `SKILL.md` take effect immediately while changes under `hooks/` do not — those need `/reload-plugins` or a restart, and the trace backstop lives under `hooks/`, so it stays dormant until you reload. Installed from a marketplace none of that applies: you are running the copy under `~/.claude/plugins/cache/`, and nothing you edit in the repo is live until you update *and* restart. See *Developing it locally* below — in particular that the update is keyed on the version string, so an unbumped `plugin.json` reloads nothing while reporting success.
+- **Plugin edits reach a running session only under `--plugin-dir`.** There, changes to `SKILL.md` take effect immediately. Installed from a marketplace none of that applies: you are running the copy under `~/.claude/plugins/cache/`, and nothing you edit in the repo is live until you update *and* restart. See *Developing it locally* below — in particular that the update is keyed on the version string, so an unbumped `plugin.json` reloads nothing while reporting success.
 - **Skills fire everywhere.** At user level or as a plugin they apply in every repo, including ones where `agy` is not installed. If it gets noisy, narrow the `description`s.
 - **A skill's `description` is cut at about 1,500 characters, silently.** The listing that puts it in context truncates it with an ellipsis. Measured: a 1,804-character description reached the model cut after 1,523 characters, mid-word (`non-t…`) — inside the very sentence that had just been appended; the 1,496-character one of 0.8.0 arrived whole. Past the cut nothing is in context, and the `description` is the only copy that counts when the skill never loads: a rule appended at the end is a rule nobody reads. It now stands at 1,429. Keep it under ~1,450, and check a change in a `--plugin-dir` session by asking Claude to quote the description's last sentences verbatim.
-- **The hook does not rewrite the plan, and the plugin directory is why.** Up to 1.0.0, when a plan carried no `> **Review**:` line in its first ten lines, `save-plan.sh` returned it through `hookSpecificOutput.updatedInput` with the notice prepended, so the plan in the approval dialog and the plan you approved opened with it. The plugin directory holds any hook that approves a tool call or changes its input: *"don't let the hook approve a tool call or change the call's input"*. Since 1.0.1 the hook sends only a `systemMessage`, and the notice lives only in the copy under `.claude/plans/` — so a plan there can open with a line Claude never wrote, while the plan you approve cannot. The skill's own stamp is untouched; what moved is the backstop, from inside the plan to beside it.
-- **Command hooks have a deadline in the directory.** The portal accepts this plugin's hook today, but warns that *"later, the directory will accept command hooks only from Verified organizations"*. Before then, either the publishing organization gets verified, or the hook goes — and with it the saved history and the backstop. The skills do not depend on it: they find the document without it.
-- **The directory reads `save-plan.sh` and stops following it.** Its validator follows only plain shell scripts, and this one uses command substitutions and variables other than `${CLAUDE_PLUGIN_ROOT}`, so every version is held for a reviewer. That is a hold, not a refusal, and rewriting the hook to dodge it is not worth it. Writing the command as `"command": "bash", "args": [...]` clears a separate warning but stops the hook on Windows, where the one-string form runs in Git Bash and the `args` form needs `bash` on the PATH — so it stays one string.
+- **The plugin has no hook, and the plugin directory is why.** Up to 1.0.1, `hooks/save-plan.sh` ran on `ExitPlanMode`: it saved every proposed plan to `<repo>/.claude/plans/` with a `latest.md`, and flagged a plan that declared no review. In 1.0.0 it flagged it by returning `updatedInput` with a notice prepended, and the directory held the plugin for it: *"don't let the hook approve a tool call or change the call's input"*. 1.0.1 sent only a `systemMessage`, and the directory refused that version outright: *"The directory accepts command hooks only from Verified organizations, and your organization isn't one"*. 1.1.0 ships no hook. Gone with it: the per-project archive, `latest.md`, the backstop, `PLAN_REVIEW_NOTICE`. Nothing was lost that the review needs: Claude Code keeps every plan under `~/.claude/plans/`, and the skills read it there. The directory still accepts hooks of type `prompt`, which run a model rather than a script; a prompt hook could restore a check on the stamp, but it would block the plan instead of flagging it and cost a model call on every exit from plan mode, and none has been measured. If the publishing organization is ever verified, the command hook is in the history at v1.0.1.
 - **A skill `description` with `: ` in it is invalid YAML.** Claude Code read the antigravity `description` anyway, and the directory refused it: in a plain YAML scalar, a colon followed by a space starts a mapping. All three `description`s are now double-quoted, with `\"` for a quote inside. Check a change with a strict parser — `ruby -ryaml` works on a stock Mac — and compare the parsed string with what you meant: quoting must not change the text, nor its length against the cut.
 - **Naming the icon's file in a text file holds the plugin.** The directory lets image files through without reading them as code, then holds the plugin if any text file names one (`UNREAD_ASSET_REFERENCED`): *"a shell or interpreter pointed at such a file could run its bytes as code"*. It flagged `CLAUDE.md` and this file for naming the icon by its path. The path appears in `plugin.json`, where `icon` needs it, and in the README's image tag, which the directory did not flag; everywhere else the docs say *the icon in `assets/`*.
-- **`.tool_input.plan` is undocumented.** `hooks/save-plan.sh` reads the plan text from it, but the field no longer appears in the `ExitPlanMode` schema (which now exposes only a deprecated `allowedPrompts`). It still arrives — measured again on Claude Code 2.1.296. Nothing critical depends on it any more: the skills pass the document inline and can find it without the hook, so if the field ever disappears you lose the saved history and the hook's notice, not the review or the trace the skill writes itself.
-- **`cp`, not `ln -s`, for `latest.md`.** Tempting to symlink; don't. Creating a symlink on Windows/NTFS needs elevated privileges or Developer Mode, and the hook would die with `Operation not permitted`. The copy costs a duplicate file and works everywhere.
-- **The hook does not touch your `.gitignore`.** It creates `.claude/plans/` in the target repo and stops there. Writing into another project's git configuration from inside a hook is a surprise nobody asked for, so ignoring that directory stays your call.
 
 ---
 
@@ -231,9 +212,6 @@ adversarial-plan-reviewer/
 │   ├── doc-critic.md         critic prompt for a document that is not about this code
 │   ├── response-protocol.md  how to answer the critique — shared
 │   └── agy-plan-reviewer.md  the read-only agy agent the Antigravity review runs as
-├── hooks/
-│   ├── hooks.json            registers the hook on ExitPlanMode
-│   └── save-plan.sh          saves the plan, flags one that declares no review
 ├── assets/                   the listing icon, 1024 × 1024 PNG, and the SVG it is rendered from
 ├── docs/
 │   └── internals.md          this file
@@ -245,7 +223,7 @@ adversarial-plan-reviewer/
 
 What is Claude Code convention and what is not:
 
-- **Standard**: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `skills/`, `hooks/hooks.json`. These are discovered on their own. The icon is not discovered: `icon` in `plugin.json` points at it.
+- **Standard**: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `skills/`. These are discovered on their own. The icon is not discovered: `icon` in `plugin.json` points at it.
 - **Non-standard**: `reviewers/`. It is the plugin's own folder, read only because the SKILL.md files reference its path. Inside a plugin this is legitimate: the files travel with the bundle and resolve through `${CLAUDE_PLUGIN_ROOT}`. The agy agent lives here too, not in `agents/`, which Claude Code would load as agents of its own.
 
 The most common mistake is putting `skills/` or `hooks/` **inside** `.claude-plugin/`. That directory holds **manifests, and only manifests** — the content lives beside it, at the repo root.
@@ -261,35 +239,19 @@ Two manifests is normal here, not a mistake: `marketplace.json` is *required* to
 If a marketplace feels like too much machinery for personal use:
 
 ```bash
-mkdir -p ~/.claude/skills ~/.claude/reviewers ~/.claude/hooks ~/.gemini/config/agents
+mkdir -p ~/.claude/skills ~/.claude/reviewers ~/.gemini/config/agents
 cp -r skills/* ~/.claude/skills/
 cp reviewers/*.md ~/.claude/reviewers/
 cp reviewers/agy-plan-reviewer.md ~/.gemini/config/agents/plan-reviewer.md
-cp hooks/save-plan.sh ~/.claude/hooks/ && chmod +x ~/.claude/hooks/save-plan.sh
 ```
 
 The agent is copied twice on purpose: agy looks for agents only in `~/.gemini/config/agents/`, and the preflight compares that copy with the one next to the critics.
 
-Outside a plugin nothing substitutes `${CLAUDE_PLUGIN_ROOT}` for you, so replace it with `$HOME/.claude` in every `SKILL.md` file. Then add the contents of `hooks/hooks.json` to `~/.claude/settings.json`, with the script's absolute path in place of `${CLAUDE_PLUGIN_ROOT}`:
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      { "matcher": "ExitPlanMode",
-        "hooks": [{ "type": "command",
-                    "command": "bash /Users/USER/.claude/hooks/save-plan.sh",
-                    "timeout": 5 }] }
-    ]
-  }
-}
-```
-
-Spell the path out in full: `$CLAUDE_PROJECT_DIR` is reliably expanded in hook commands, `$HOME` and `~` carry no such guarantee.
+Outside a plugin nothing substitutes `${CLAUDE_PLUGIN_ROOT}` for you, so replace it with `$HOME/.claude` in every `SKILL.md` file.
 
 ### In a single project
 
-Same as at user level, but in `<repo>/.claude/` instead of `~/.claude/`, with paths becoming `$CLAUDE_PROJECT_DIR/.claude/...`. The agent still goes in `~/.gemini/config/agents/`: agy has no per-project place for it. Only worth it if you want to tune the critic prompt for that specific repo.
+Same as at user level, but in `<repo>/.claude/` instead of `~/.claude/`, with paths becoming `${CLAUDE_PROJECT_DIR:-$PWD}/.claude/...`. The agent still goes in `~/.gemini/config/agents/`: agy has no per-project place for it. Only worth it if you want to tune the critic prompt for that specific repo.
 
 ---
 
