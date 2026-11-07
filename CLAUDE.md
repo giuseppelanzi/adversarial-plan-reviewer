@@ -40,6 +40,7 @@ The plugin's *output* follows the language of the conversation or the document. 
 - No hook of type `command`: the plugin directory refuses them from organizations that are not Verified. A `prompt` hook is allowed, but none ships.
 - Skill `description`s are double-quoted in the front matter. Unquoted, a `: ` in the text makes it invalid YAML, which Claude Code tolerates and the directory refuses.
 - Nothing inside `.claude-plugin/` except the two manifests. The icon lives in `assets/`, named by `icon` in `plugin.json`.
+- No committed file outside Markdown, text, JSON, YAML and PNG, JPEG, GIF, WebP or ICO images: the plugin directory refuses anything else from organizations that are not Verified, judging the content, not the name — no `#!` first line, no package manager configuration, no SVG, UTF-8 with no NUL bytes. `validate` does not catch it (`docs/internals.md`, *Known traps*).
 
 ## Shell
 
@@ -54,7 +55,7 @@ The Bash tool runs zsh, and the skills' bash runs there too:
 
 ## Verifying a change
 
-- `claude plugin validate . --profile directory` — the manifests, and anything the plugin directory would refuse a submission for.
+- `claude plugin validate . --profile directory` — the manifests, and much of what the plugin directory would refuse a submission for, but not the file types: for those, the `file --mime` loop in *Known traps*.
 - `claude --plugin-dir .` — live loop, no install. `SKILL.md` edits apply at once.
 - An installed copy is under `~/.claude/plugins/cache/`. `claude plugin update` compares only the version string, so without a bump it reports `already at the latest version` and reloads nothing; force the copy with `plugin uninstall` + `plugin install`, then restart.
 - Judge a reviewer run by its output, never its exit code: an empty agy run exits 0, a failed `claude -p` run sets `.is_error` while exiting 0, and a codex run is the `VERDICT:` in its `--output-last-message` file — after the exit code, since `124` is the ceiling and a failed run whatever the file holds — never its stdout, which is the event stream.
