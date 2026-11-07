@@ -185,6 +185,7 @@ If a reviewer's CLI fails — not logged in, a read refused, missing binary or a
 - **The plugin has no hook, and the plugin directory is why.** Up to 1.0.1, `hooks/save-plan.sh` ran on `ExitPlanMode`: it saved every proposed plan to `<repo>/.claude/plans/` with a `latest.md`, and flagged a plan that declared no review. In 1.0.0 it flagged it by returning `updatedInput` with a notice prepended, and the directory held the plugin for it: *"don't let the hook approve a tool call or change the call's input"*. 1.0.1 sent only a `systemMessage`, and the directory refused that version outright: *"The directory accepts command hooks only from Verified organizations, and your organization isn't one"*. 1.1.0 ships no hook. Gone with it: the per-project archive, `latest.md`, the backstop, `PLAN_REVIEW_NOTICE`. Nothing was lost that the review needs: Claude Code keeps every plan under `~/.claude/plans/`, and the skills read it there. The directory still accepts hooks of type `prompt`, which run a model rather than a script; a prompt hook could restore a check on the stamp, but it would block the plan instead of flagging it and cost a model call on every exit from plan mode, and none has been measured. If the publishing organization is ever verified, the command hook is in the history at v1.0.1.
 - **A skill `description` with `: ` in it is invalid YAML.** Claude Code read the antigravity `description` anyway, and the directory refused it: in a plain YAML scalar, a colon followed by a space starts a mapping. All three `description`s are now double-quoted, with `\"` for a quote inside. Check a change with a strict parser — `ruby -ryaml` works on a stock Mac — and compare the parsed string with what you meant: quoting must not change the text, nor its length against the cut.
 - **Naming the icon's file in a text file holds the plugin.** The directory lets image files through without reading them as code, then holds the plugin if any text file names one (`UNREAD_ASSET_REFERENCED`): *"a shell or interpreter pointed at such a file could run its bytes as code"*. It flagged `CLAUDE.md` and this file for naming the icon by its path. The path appears in `plugin.json`, where `icon` needs it, and in the README's image tag, which the directory did not flag; everywhere else the docs say *the icon in `assets/`*.
+- **The directory takes only text and images, and `validate` does not check it.** From an organization that is not Verified, the directory accepts Markdown, text, JSON, YAML and PNG, JPEG, GIF, WebP or ICO images, nothing else (`LOCAL_CODE_FILE_TYPE`): no file that starts with `#!`, no package manager configuration such as `pnpm-workspace.yaml`, no text that is not UTF-8 or holds a NUL byte. It judges the content, *"whatever its name"*, and it reads every committed file, since the plugin's `source` is the repository root. After 1.2.0 it refused the plugin for the SVG the icon was rendered from, in `assets/` since 1.0.0 and named by no file: *"The directory accepts scripts, programs, and files outside the allowed types only from Verified organizations"*. `claude plugin validate . --profile directory` had passed on that same tree. The SVG is gone from the tree; it is in the history, `git show v1.2.0:assets/icon-source.svg`. Check a change with `git ls-files | while IFS= read -r f; do printf '%s\t%s\n' "$f" "$(file -b --mime "$f")"; done`, and look for anything that is not `text/plain`, `application/json` or an allowed image, and for a first line starting with `#!`.
 
 ---
 
@@ -218,7 +219,7 @@ adversarial-plan-reviewer/
 │   ├── doc-critic.md         critic prompt for a document that is not about this code
 │   ├── response-protocol.md  how to answer the critique — shared
 │   └── agy-plan-reviewer.md  the read-only agy agent the Antigravity review runs as
-├── assets/                   the listing icon, 1024 × 1024 PNG, and the SVG it is rendered from
+├── assets/                   the listing icon, 1024 × 1024 PNG
 ├── docs/
 │   └── internals.md          this file
 ├── .claude/skills/craft-release/   a project skill for maintainers: writes the release notes
@@ -300,4 +301,10 @@ Before a release, check the manifests and what the plugin directory would refuse
 
 ```bash
 claude plugin validate . --profile directory
+```
+
+`validate` does not check file types (*Known traps*). List what is committed, and look for anything that is not `text/plain`, `application/json` or an allowed image:
+
+```bash
+git ls-files | while IFS= read -r f; do printf '%s\t%s\n' "$f" "$(file -b --mime "$f")"; done
 ```
