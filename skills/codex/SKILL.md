@@ -93,11 +93,9 @@ Find it in this order:
 
 1. the path the user gave, if any;
 2. **the plan document of the current plan mode session** — the path named in your plan mode instructions, typically under `~/.claude/plans/`. This is the authoritative version while you are planning;
-3. `${CLAUDE_PROJECT_DIR:-$PWD}/.claude/plans/latest.md`, written by the `ExitPlanMode` hook — for a review asked for *after* leaving plan mode.
+3. **the plan document of this conversation's last plan mode session** — for a review asked for *after* leaving plan mode. It is the same path the plan mode instructions named: Claude Code keeps the file under `~/.claude/plans/` after approval. Never take the newest file in that folder instead: it can belong to another session.
 
-`$CLAUDE_PROJECT_DIR` is set for hook commands but **not** in the shell you run bash in — expect it to be empty and use `${CLAUDE_PROJECT_DIR:-$PWD}` everywhere.
-
-If none exists, stop and ask. Do not reconstruct the plan from memory of the conversation: you would be critiquing a different version from the one that gets implemented.
+If none exists, or the plan mode path is no longer in the conversation — after a compaction, for instance — stop and ask. Do not reconstruct the plan from memory of the conversation: you would be critiquing a different version from the one that gets implemented.
 
 For any other document — an analysis, a specification, a proposal, a note — same mechanism with that document's path.
 
@@ -105,7 +103,7 @@ For any other document — an analysis, a specification, a proposal, a note — 
 
 Same rule as the other skills, and the two critics live in the same `${CLAUDE_PLUGIN_ROOT}/reviewers/`:
 
-1. **a plan document** — a plan mode session's, or `latest.md` → **always** `plan-critic.md`. No classification, no judgement call;
+1. **a plan document** — a plan mode session's, during or after plan mode → **always** `plan-critic.md`. No classification, no judgement call;
 2. otherwise, **are the document's claims verifiable against this repository?** An analysis of this codebase, an ADR about this code, a post-mortem on it → `plan-critic.md`. A specification, a proposal, a note, anything whose subject is not this code → `doc-critic.md`;
 3. **if the user names the critic, they win.** Say which one you used either way.
 

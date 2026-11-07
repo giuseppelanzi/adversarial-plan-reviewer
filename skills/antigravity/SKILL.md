@@ -57,9 +57,9 @@ A review is an agy call of up to half an hour in the middle of planning — the 
 > **Review**: not run — the user chose to skip the review.
 ```
 
-Keep `**Review**:` and `not run` in English, and keep the line inside the **first ten lines** of the document: that is what the `ExitPlanMode` hook greps for. Finding nothing, it warns the user and puts a notice of its own at the top of the copy it saves in `.claude/plans/` — a backstop, not a substitute. It never edits the plan itself, and it can only report that nothing was declared, never why.
+Keep `**Review**:` and `not run` in English. Nothing else checks for the line: a plan without it simply looks unreviewed, with no reason given.
 
-**Outside plan mode, propose it.** In auto mode or the default mode there is no plan document and no `ExitPlanMode`: the question never comes, the hook never runs, and a non-trivial change goes straight to code. So before implementing a change that is non-trivial by the line above, propose plan mode with `EnterPlanMode` — the tool asks the user to consent. Accepted, the plan is made with the user and everything above applies. Declined, proceed as asked: there is no review and no stamp, because there is no plan to carry one. Do not propose it for a trivial change, or when the user has already said to proceed without a plan. The `description` carries the same rule, and it is the copy that counts: outside plan mode this section is never loaded.
+**Outside plan mode, propose it.** In auto mode or the default mode there is no plan document and no `ExitPlanMode`: the question never comes, and a non-trivial change goes straight to code. So before implementing a change that is non-trivial by the line above, propose plan mode with `EnterPlanMode` — the tool asks the user to consent. Accepted, the plan is made with the user and everything above applies. Declined, proceed as asked: there is no review and no stamp, because there is no plan to carry one. Do not propose it for a trivial change, or when the user has already said to proceed without a plan. The `description` carries the same rule, and it is the copy that counts: outside plan mode this section is never loaded.
 
 ## 1. Preflight — the tool, the reviewer agent, and a read of this repo
 
@@ -141,11 +141,9 @@ Find it in this order:
 
 1. the path the user gave, if any;
 2. **the plan document of the current plan mode session** — the path named in your plan mode instructions, typically under `~/.claude/plans/`. This is the authoritative version while you are planning;
-3. `${CLAUDE_PROJECT_DIR:-$PWD}/.claude/plans/latest.md`, written by the `ExitPlanMode` hook — for a review asked for *after* leaving plan mode.
+3. **the plan document of this conversation's last plan mode session** — for a review asked for *after* leaving plan mode. It is the same path the plan mode instructions named: Claude Code keeps the file under `~/.claude/plans/` after approval. Never take the newest file in that folder instead: it can belong to another session.
 
-`$CLAUDE_PROJECT_DIR` is set for hook commands but **not** in the shell you run bash in — expect it to be empty and use `${CLAUDE_PROJECT_DIR:-$PWD}` everywhere.
-
-If none exists, stop and ask. Do not reconstruct the plan from memory of the conversation: you would be critiquing a different version from the one that gets implemented.
+If none exists, or the plan mode path is no longer in the conversation — after a compaction, for instance — stop and ask. Do not reconstruct the plan from memory of the conversation: you would be critiquing a different version from the one that gets implemented.
 
 For any other document — an analysis, a specification, a proposal, a note — same mechanism with that document's path.
 
@@ -153,7 +151,7 @@ For any other document — an analysis, a specification, a proposal, a note — 
 
 Two critic prompts live in `${CLAUDE_PLUGIN_ROOT}/reviewers/`, and the choice decides what the reviewer is even allowed to count as evidence:
 
-1. **a plan document** — a plan mode session's, or `latest.md` → **always** `plan-critic.md`. No classification, no judgement call;
+1. **a plan document** — a plan mode session's, during or after plan mode → **always** `plan-critic.md`. No classification, no judgement call;
 2. otherwise, ask one question: **are the document's claims verifiable against this repository?** An analysis of this codebase, an ADR about this code, a post-mortem on it → `plan-critic.md`. A specification, a proposal, a note, anything whose subject is not this code → `doc-critic.md`;
 3. **if the user names the critic, they win.** Say which one you used either way.
 
