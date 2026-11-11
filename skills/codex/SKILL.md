@@ -13,6 +13,14 @@ It is a different vendor's model from yours — OpenAI's, as Antigravity's is Go
 
 Only when the user names Codex — or OpenAI — as the reviewer, in the request, or by picking `Codex` in one of the two questions of `/adversarial-plan-reviewer:antigravity`. For an unnamed review, ask that skill's `Reviewer` question first: there is no default reviewer.
 
+**Sum the plan up first, for the user.** On the first review of a plan whose summary the user has not had — they asked for the review together with the plan, or in plan mode before the `Review` question of `/adversarial-plan-reviewer:antigravity` came — give it before anything else, the preflight included. In a few lines and in the language of the conversation, say what it does, the files it touches, its algorithms or design choices:
+
+- **what** — the change and what it is for;
+- **where** — the files it touches, and the modules or components they belong to;
+- **how** — the algorithms, data structures or design choices it rests on, or that there are none worth naming.
+
+Write it from the plan document as it stands, not from memory of the discussion. It goes to the user only: the reviewer still gets the document and nothing else. Not on another pass, where the user has the diff.
+
 This reviewer never starts on its own. Picked in a question, it is named: that answer is the request, so run it without asking again. Another pass stays with it, unless the user names a different reviewer. The rest follows the response protocol like the other reviewers: you propose `ACCEPT` / `REJECT` for each point, the user chooses which points to take, and the plan changes on those alone.
 
 The trace rule is the one the other skills carry: whatever the outcome, the plan document ends up with a `> **Review**: …` block right after its title — section 4 of the response protocol.

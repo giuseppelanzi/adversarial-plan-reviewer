@@ -1,6 +1,6 @@
 ---
 name: antigravity
-description: "Submits a plan or any document — analysis, specification, proposal, note — to Antigravity CLI (agy), an adversarial read-only reviewer; you propose on each point, the user picks which to take. Use it when the user names agy or Antigravity, or picks it in a question below. The user picks the reviewer each time, and you run the skill picked: asked to review, check or critique a plan or document, or for a second opinion, with no reviewer named, ask with AskUserQuestion, header \"Reviewer\", options \"Antigravity\" / \"Codex\" / \"Claude\". Never start a review of a plan on your own: discuss it first. When a non-trivial plan is ready — any plan with architectural consequences — ask: \"The plan is ready. Send it to a reviewer before approving it?\", header \"Review\", options \"Antigravity\" / \"Codex\" / \"Claude\" / \"Approve without review\"; a free answer means keep discussing. A trivial plan — a rename, a one-line fix, a mechanical edit to a single file — gets no question. Either way, right after the plan's title: `> **Review**: not run — <reason>` when trivial, exactly `> **Review**: not run — the user chose to skip the review.` on \"Approve without review\". It runs in plan mode, before ExitPlanMode. Outside plan mode, before a non-trivial change by the same line, propose plan mode with EnterPlanMode, unless the user said to proceed without one; declined, proceed with no review and no stamp. Requests may come in any language."
+description: "Submits a plan or other document to Antigravity CLI (agy), an adversarial read-only reviewer; you propose, the user picks the points to take. Use it when the user names agy or Antigravity, or picks it in a question below. The user picks the reviewer each time; run the skill picked: asked to review, check or critique a plan or document, or for a second opinion, with no reviewer named, ask with AskUserQuestion, header \"Reviewer\", options \"Antigravity\" / \"Codex\" / \"Claude\". Never start a review of a plan on your own: discuss it first. When a non-trivial plan is ready — any plan with architectural consequences — briefly sum it up for the user (what it does, the files it touches, its algorithms or design choices), then ask: \"The plan is ready. Send it to a reviewer before approving it?\", header \"Review\", options \"Antigravity\" / \"Codex\" / \"Claude\" / \"Approve without review\"; a free answer means keep discussing. A trivial plan — a rename, a one-line fix, a mechanical edit to one file — gets no question. Either way, right after the plan's title: `> **Review**: not run — <reason>` when trivial, exactly `> **Review**: not run — the user chose to skip the review.` on \"Approve without review\". It runs in plan mode, before ExitPlanMode. Outside plan mode, before a non-trivial change, propose EnterPlanMode unless the user said to proceed without a plan; declined, proceed with no review and no stamp. Requests may come in any language."
 ---
 
 # Plan review — Antigravity CLI (agy)
@@ -23,13 +23,23 @@ Two rules, in order of precedence.
 
   The answer is the request.
 
-**Not asked for → never on your own: the user decides.** Plan mode is where the plan is made *with* the user, so discuss it first. When you consider a non-trivial plan ready — after the discussion, not instead of it — ask with `AskUserQuestion`:
+**Not asked for → never on your own: the user decides.** Plan mode is where the plan is made *with* the user, so discuss it first. When you consider a non-trivial plan ready — after the discussion, not instead of it — sum it up for the user, then ask with `AskUserQuestion`:
 
 - question: `The plan is ready. Send it to a reviewer before approving it?`
 - header: `Review`
 - options, single choice: `Antigravity` / `Codex` / `Claude` / `Approve without review`
 
 Their answer is the confirmation. "Keep discussing" has no option of its own — the tool takes four at most — so a free-text answer under *Other* means keep discussing: do that, and ask again when the plan is ready again.
+
+**Sum it up first, for the user.** In plan mode the user sees the plan whole only in the approval dialog of `ExitPlanMode`, after this question: asked bare, they decide whether to spend up to half an hour of review on a document they have not read. So right before the question, in a few lines and in the language of the conversation, say what it does, the files it touches, its algorithms or design choices:
+
+- **what** — the change and what it is for;
+- **where** — the files it touches, and the modules or components they belong to;
+- **how** — the algorithms, data structures or design choices it rests on, or that there are none worth naming.
+
+Write it from the plan document as it stands, not from memory of the discussion: that document is what the reviewer will get. It is a summary, not the plan restated. It goes to the user only: the reviewer still gets the document and nothing else. When the question comes again after a free answer, sum up the plan as it now stands.
+
+**On a review asked for, too.** When the user asked for the review — together with the plan, or in plan mode before this question came — they never had the summary above. Give it to them before anything else, the preflight of section 1 included, so that a preflight that stops does not take it with it. It is due on the first review of a plan whose summary the user has not had; not on another pass, where they have the diff.
 
 **One map for both questions:**
 
