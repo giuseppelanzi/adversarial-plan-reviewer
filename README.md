@@ -55,7 +55,7 @@ About the Antigravity agent: it lives in agy's own configuration, which a Claude
 
 The plugin is active in every repository you open with Claude Code, not only the one you install it from. It writes nothing into your projects. Two things change:
 
-- **A question on every non-trivial plan.** When a plan is ready, Claude asks: *The plan is ready. Send it to a reviewer before approving it?*, with `Antigravity`, `Codex`, `Claude` and `Approve without review`. Trivial plans get no question: a rename, a one-line fix, a mechanical edit to one file.
+- **A question on every non-trivial plan.** When a plan is ready, Claude sums it up in a few lines — what it does, the files it touches, its algorithms or design choices — and asks: *The plan is ready. Send it to a reviewer before approving it?*, with `Antigravity`, `Codex`, `Claude` and `Approve without review`. Trivial plans get no question: a rename, a one-line fix, a mechanical edit to one file.
 - **Plan mode, proposed.** Outside plan mode, before a non-trivial change, Claude proposes switching to plan mode. If you decline, it carries on as you asked, without a review. If you have already told it to go ahead without a plan, it does not propose it.
 
 To turn all of this off for a while, disable the plugin from `/plugin`.
@@ -73,6 +73,7 @@ The plugin has no server and collects nothing. The reviewer is a command line to
 ```
 > [plan mode] design the multi-tenant schema migration
 > [you and Claude discuss the plan]
+> [Claude sums up the plan: what it does, the files it touches, its algorithms or design choices]
 > [Claude: "The plan is ready. Send it to a reviewer before approving it?"]
 > Codex
 > [the critique, Claude's proposal for each point, and "which points do we take?"]
