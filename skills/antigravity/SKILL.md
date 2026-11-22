@@ -31,7 +31,7 @@ Two rules, in order of precedence.
 
 Their answer is the confirmation. "Keep discussing" has no option of its own — the tool takes four at most — so a free-text answer under *Other* means keep discussing: do that, and ask again when the plan is ready again.
 
-**Sum it up first, for the user.** In plan mode the user sees the plan whole only in the approval dialog of `ExitPlanMode`, after this question: asked bare, they decide whether to spend up to half an hour of review on a document they have not read. So right before the question, in a few lines and in the language of the conversation, say what it does, the files it touches, its algorithms or design choices:
+**Sum it up first, for the user.** In plan mode the user sees the plan whole only in the approval dialog of `ExitPlanMode`, after this question: asked bare, they decide whether to spend up to an hour of review on a document they have not read. So right before the question, in a few lines and in the language of the conversation, say what it does, the files it touches, its algorithms or design choices:
 
 - **what** — the change and what it is for;
 - **where** — the files it touches, and the modules or components they belong to;
@@ -58,7 +58,7 @@ A plan with architectural consequences is non-trivial by definition. Trivial one
 
 Plan mode blocks writes, not reads — bash runs fine there, and the plan document is the one file you may edit. So the whole *review → choose → revise → propose* loop closes inside plan mode, and the user sees the plan and the critique together instead of having to reject a plan just to get it reviewed.
 
-A review is an agy call of up to half an hour in the middle of planning — the ceiling is a tier picked per document, section 3. That cost is why the user decides, why trivial plans get no question, and why the first review of a conversation is gated on the preflight of section 1.
+A review is an agy call of up to an hour in the middle of planning — the ceiling is a tier picked per document, section 3. That cost is why the user decides, why trivial plans get no question, and why the first review of a conversation is gated on the preflight of section 1.
 
 **Either way, the plan says so.** A decision nobody can see did not happen: a plan with no review looks exactly like a plan whose review was never mentioned. When the review runs, the trace is section 4 of the response protocol. When it does not, write the line yourself, right after the document's `#` title — with the reason for a trivial plan, and in exactly this form when the user picked `Approve without review`:
 
@@ -71,9 +71,9 @@ Keep `**Review**:` and `not run` in English. Nothing else checks for the line: a
 
 **Outside plan mode, propose it.** In auto mode or the default mode there is no plan document and no `ExitPlanMode`: the question never comes, and a non-trivial change goes straight to code. So before implementing a change that is non-trivial by the line above, propose plan mode with `EnterPlanMode` — the tool asks the user to consent. Accepted, the plan is made with the user and everything above applies. Declined, proceed as asked: there is no review and no stamp, because there is no plan to carry one. Do not propose it for a trivial change, or when the user has already said to proceed without a plan. The `description` carries the same rule, and it is the copy that counts: outside plan mode this section is never loaded.
 
-## 1. Preflight — the tool, the reviewer agent, and a read of this repo
+## 1. Preflight — the tool, the reviewer agent, the model pins, and a read of this repo
 
-Three checks before the **first** review of a conversation. All are cheap, and each catches a failure that would otherwise only surface at the end of a long run.
+Four checks before the **first** review of a conversation. All are cheap, and each catches a failure that would otherwise only surface at the end of a long run.
 
 ### The tool
 
@@ -111,26 +111,66 @@ and stamp the plan — no agy run happened, so there is no agy error to quote:
 > Plan NOT verified.
 ```
 
+### The model pins
+
+The review and the probe run on two models, each with its own pin and its own override:
+
+| Run | Pin | Override |
+|---|---|---|
+| the review | `gemini-4-neon-xhigh` | `PLAN_REVIEW_MODEL` |
+| the probe | `gemini-4-hydrogen-low` | `PLAN_REVIEW_PROBE_MODEL` |
+
+Both must be listed by `agy models`. The check does not run on its own: it sits at the top of the probe's bash block below, because the probe's model depends on its outcome, and one `agy models` is enough. It takes about two seconds. Three outcomes, and a stop here takes its stamp and remedy from this subsection, not from the probe's:
+
+- **`agy models` failed or listed nothing → stop.** The block prints `!! agy models failed or listed nothing`, then the command's stdout and stderr. Write the *failed* stamp of section 4 of the response protocol, quoting `agy models`'s own error, trimmed, and naming `agy models` as the cause — not the probe, which never ran. Then follow section 5, most likely *Not logged in*. What `agy models` prints when logged out is not measured: quote what it says rather than assume it.
+- **The review pin is not listed → stop.** The block prints `REVIEW MODEL NOT LISTED` and the models that are. There is no automatic fallback: the review model is the user's choice of quality. Hand them the remedy, taken from that list — update agy to 1.5.14 or later, or set `PLAN_REVIEW_MODEL` to a listed model in the environment Claude Code starts from — and stamp the plan, writing the model that was requested in place of `<model>`:
+
+  ```
+  > **Review**: Antigravity not run — `<model>` not in `agy models`.
+  > Plan NOT verified.
+  ```
+
+- **The probe pin is not listed → the probe runs on the review pin.** The block prints `PROBE MODEL NOT LISTED` and carries on, decided before any run. Say so in one line, and tell the user that `PLAN_REVIEW_PROBE_MODEL` set to a listed Hydrogen model restores the fast probe. A stale probe pin never blocks a review that would run.
+
 ### The read probe
 
 **Once per conversation and per working directory, before the first review.** Not before every review: once it has passed, say so and move on.
 
-The probe is a **dress rehearsal of the review**. Identical: the flags (`--mode plan --sandbox --agent plan-reviewer`), `--add-dir`, the command list in `--settings`, the model pin, the event transport. Lowered: the prompt and the ceiling (`120s`). Never soften the first group to make the probe pass — a rehearsal under a friendlier command line predicts nothing about the performance.
+The probe is a **dress rehearsal of the review, identical except the model**. Identical: the flags (`--mode plan --sandbox --agent plan-reviewer`), `--add-dir`, the command list in `--settings`, the event transport. Lowered: the prompt, the ceiling (`180s`), and the model — the probe's Hydrogen pin instead of the review's Neon. Never soften the first group to make the probe pass — a rehearsal under a friendlier command line predicts nothing about the performance.
 
-It asks for **the root listing on purpose**: it is the reviewer's first act of exploration, done with the same tools the review will use. In about half a minute — 25 to 30 seconds measured with `gemini-4-argon-high` — it settles what a review would otherwise discover at the end of a quarter of an hour: credentials still valid, model pin still real, workspace attached, and the agent able to list the root.
+**Why the model may differ.** What the probe guards against does not depend on the model: the workspace attached, the agent installed, the command list, the sandbox, and an `ls` of the root in the events — the silent failures that would otherwise surface at the end of a run. A model error fails fast with or without a probe — an unknown model makes agy exit 1 in about two seconds, measured — and the check above has already found both pins in `agy models`. What a Hydrogen probe does not cover is the review model's own quota: section 5, *Quota*.
+
+It asks for **the root listing on purpose**: it is the reviewer's first act of exploration, done with the same tools the review will use. In about five seconds — 3.8 to 5.5 measured with `gemini-4-hydrogen-low`, 26 to 35 with `gemini-4-neon-xhigh` when the probe falls back to the review pin — it settles what a review would otherwise discover at the end of a long run: credentials still valid, workspace attached, and the agent able to list the root. The ceiling, `180s`, is about twice the slowest probe seen on a model the probe can run on: 83.7 seconds with `gemini-4-argon-high`, the review's fallback, on a larger repository. A ceiling, not a budget: it costs nothing on a five-second run.
 
 ```bash
 PROJECT="${CLAUDE_PROJECT_DIR:-$PWD}"
 cd "$PROJECT" || exit 1
 OUT="${TMPDIR:-/tmp}/plan-review-probe.json"
 ERR="${TMPDIR:-/tmp}/plan-review-probe.err"
-REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-4-argon-high}"
+# The model pins (above): both must be in `agy models`. Read from a file, with its exit code: a pipe would lose it.
+REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-4-neon-xhigh}"
+PROBE_MODEL="${PLAN_REVIEW_PROBE_MODEL:-gemini-4-hydrogen-low}"
+MODELS="${TMPDIR:-/tmp}/plan-review-models.txt"
+agy models </dev/null >"$MODELS" 2>"$ERR"
+MRC=$?
+LISTED="$(cut -s -f1 "$MODELS")"
+echo "=== agy models: exit $MRC ==="
+if [ "$MRC" -ne 0 ] || [ -z "$LISTED" ]; then
+  echo "!! agy models failed or listed nothing"
+  echo "=== stdout ==="; head -c 600 "$MODELS"
+  echo "=== stderr ==="; head -c 600 "$ERR"; exit 1
+fi
+if ! printf '%s\n' "$LISTED" | grep -Fxq -- "$REVIEW_MODEL"; then
+  echo "REVIEW MODEL NOT LISTED: $REVIEW_MODEL. Listed:"; printf '%s\n' "$LISTED"; exit 1
+fi
+if printf '%s\n' "$LISTED" | grep -Fxq -- "$PROBE_MODEL"; then echo "listed: $REVIEW_MODEL, $PROBE_MODEL"
+else echo "PROBE MODEL NOT LISTED: $PROBE_MODEL, the probe runs on $REVIEW_MODEL"; PROBE_MODEL="$REVIEW_MODEL"; fi
 # The reviewer's command list, for this run only: it replaces the user's own permissions.allow (section 3).
 AGY_SETTINGS='{"permissions":{"allow":["command(ls)","command(grep)","command(cat)","command(head)","command(tail)","command(wc)"]}}'
 PROBE="List the names of the files and directories at the root of the workspace, one per line, nothing else — no commentary, no code fences, no plan, no subagent."
 
 echo "=== the real root ==="; ls -A
-agy --mode plan --sandbox --agent plan-reviewer --add-dir "$PROJECT" --settings "$AGY_SETTINGS" --model "$REVIEW_MODEL" --print-timeout 120s --output-format stream-json -p "$PROBE" </dev/null >"$OUT" 2>"$ERR"
+agy --mode plan --sandbox --agent plan-reviewer --add-dir "$PROJECT" --settings "$AGY_SETTINGS" --model "$PROBE_MODEL" --print-timeout 180s --output-format stream-json -p "$PROBE" </dev/null >"$OUT" 2>"$ERR"
 echo "=== exit $? ==="
 jq -r 'select(.event=="result") | "status=\(.result.status)  empty=\(.result.response=="")", .result.response' "$OUT" 2>/dev/null
 echo "=== commands that ran ==="
@@ -148,7 +188,7 @@ echo "=== stderr ==="; head -c 600 "$ERR"
 
 It **fails** on an empty `response`, on prose instead of names, on a plausible generic project — `src/`, `package.json` — that is not this one, and on a correct listing with no such `ls` behind it. That last case is not hypothetical. From 4 to 6 November 2026, agy 1.5 had already taken the listing tools away from the agent, and the probe kept passing on this repo: the reviewer rebuilt the root from `README.md`, the repo layout in `docs/internals.md`, `.DS_Store` and `.git/logs/HEAD`, names a model could not have guessed included. Some other command that succeeded, such as `wc README.md`, does not count either: the listing is what is being proven.
 
-**If it fails, the review does not run.** The events and stderr say why — section 5 lists the causes and their remedies. Write the *failed* stamp of section 4 of the response protocol onto the plan, naming the probe as the cause, and stop. Do not re-run it, and do not reach for another reviewer on your own.
+**If the probe fails, the review does not run.** This holds for a probe that ran: a stop of the model check at the top of the block — `!! agy models failed or listed nothing`, or `REVIEW MODEL NOT LISTED` — takes its stamp and remedy from *The model pins*. For the probe, the events and stderr say why — section 5 lists the causes and their remedies. Write the *failed* stamp of section 4 of the response protocol onto the plan, naming the probe as the cause, and stop. Do not re-run it, and do not reach for another reviewer on your own.
 
 **The probe is not a review.** No critic, no verdict, and it never counts toward files read.
 
@@ -186,15 +226,15 @@ This does not contradict "do not prepare context for it". That rule is about con
 
 ### The ceiling
 
-`--print-timeout` is a **ceiling, not a budget**: a review that needs four minutes finishes in four minutes whatever the ceiling is. Raising it costs nothing on a healthy run — it costs wall clock only on a run that hangs, and it is spent inside plan mode. So the ceiling does not answer *how much compute do I grant*, it answers **how long do I wait before concluding something is broken** — and that is why you err high. A ceiling set too low costs the whole run plus the next one: 5 then 15 makes 20 minutes where starting at 15 makes 15.
+`--print-timeout` is a **ceiling, not a budget**: a review that needs four minutes finishes in four minutes whatever the ceiling is. Raising it costs nothing on a healthy run — it costs wall clock only on a run that hangs, and it is spent inside plan mode. So the ceiling does not answer *how much compute do I grant*, it answers **how long do I wait before concluding something is broken** — and that is why you err high. A ceiling set too low costs the whole run plus the next one: 10 then 30 makes 40 minutes where starting at 30 makes 30.
 
-Three tiers. agy caps nothing on turns, so here the tier is one number; the Claude skill's table carries two.
+Three tiers. agy caps nothing on turns, so here the tier is one number; the Claude skill's table carries two. They are **twice the other two skills'**, since the review moved to `gemini-4-neon-xhigh`: on plans of 10 to 20 KB it took 532, 592 and 720 seconds, measured, and a ceiling sits at about twice the slowest run.
 
 | Tier | `--print-timeout` |
 |---|---|
-| **short** | `300s` |
-| **standard** | `900s` |
-| **deep** | `1800s` |
+| **short** | `600s` |
+| **standard** | `1800s` |
+| **deep** | `3600s` |
 
 Pick one as **a judgement you state, not a threshold you count**:
 
@@ -204,7 +244,7 @@ Pick one as **a judgement you state, not a threshold you count**:
 
 Every signal is free and in hand before the run: the size of the document (you are reading it anyway, to inline it), how many distinct files and modules the plan names, and `git ls-files | wc -l` for the size of the repo. Nothing here is estimated by feel.
 
-**That the floor is not the default follows from section 0, not from taste.** The review runs only on non-trivial plans — trivial ones skip the question — and non-trivial is defined there as a plan with architectural consequences, so those runs are born above the floor. Keeping 5 minutes as the default would tune the ceiling for the one case section 0 has just finished excluding.
+**That the floor is not the default follows from section 0, not from taste.** The review runs only on non-trivial plans — trivial ones skip the question — and non-trivial is defined there as a plan with architectural consequences, so those runs are born above the floor. Keeping 10 minutes as the default would tune the ceiling for the one case section 0 has just finished excluding.
 
 Say which tier you ran under when it is not the floor: the rule is section 5 of the response protocol.
 
@@ -216,11 +256,11 @@ cd "$PROJECT" || exit 1
 PLAN="<PLAN_PATH>"
 OUT="${TMPDIR:-/tmp}/plan-review-antigravity.json"
 ERR="${TMPDIR:-/tmp}/plan-review-antigravity.err"
-REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-4-argon-high}"
+REVIEW_MODEL="${PLAN_REVIEW_MODEL:-gemini-4-neon-xhigh}"
 # The reviewer's command list, for this run only — identical to the probe's. See the constraint below.
 AGY_SETTINGS='{"permissions":{"allow":["command(ls)","command(grep)","command(cat)","command(head)","command(tail)","command(wc)"]}}'
 # The tier chosen above goes here. Seconds, bare integer, no unit — the "s" is appended below.
-REVIEW_TIMEOUT="${PLAN_REVIEW_TIMEOUT:-900}"
+REVIEW_TIMEOUT="${PLAN_REVIEW_TIMEOUT:-1800}"
 
 # Section 2 chose these two together. They are one unit: see the constraint below.
 CRITIC="${CLAUDE_PLUGIN_ROOT}/reviewers/plan-critic.md"
@@ -262,7 +302,7 @@ Constraints:
 - **`--add-dir` is not optional.** `cd` does nothing for agy: it does not take the working directory as its workspace. Asked to list its workspace without the flag, it answers `NO WORKSPACE`. Without a file tree even reading is refused — the tool it names is **`read_file`**, measured. Quote the path — repositories have spaces in them.
 - **Four flags, and they are one unit.** `--mode plan` is agy's read-only execution mode, `--sandbox` runs commands under the operating system's sandbox, `--agent plan-reviewer` is the reviewer with `read_file` and `run_command` alone, and `--settings "$AGY_SETTINGS"` is the list of commands that run (section 4). Do not drop one and keep the rest.
 - **`--settings` carries the command list, and it replaces the user's own.** Measured with `agy -p "/permissions"`, which answers without starting a turn: a `permissions.allow` passed in `--settings` **replaces** the `allow` list of `~/.gemini/antigravity-cli/settings.json` for that run, and leaves the file untouched; a `deny` passed alone is added to the user's list instead. Relying on the user's list would hand the reviewer every command they ever allowed for their own sessions. On the machine where this was measured that meant `python3` and `git`, and both can write. The repository under review cannot widen the list either: six candidate project files granting `command(touch)` added nothing, in a workspace marked trusted. `AGY_SETTINGS` is the same string in both blocks. `rg` is not on it, because `rg --pre <program>` runs a program on every file it searches.
-- **No `--effort`.** The reasoning level is in the model's name (`-high`), and since agy 1.3.4 a name that carries it rejects the flag: `--effort is not supported for model …`.
+- **No `--effort`.** The reasoning level is in the model's name, `-low` to `-xhigh`, and since agy 1.3.4 a name that carries it rejects the flag: `--effort is not supported for model …`.
 - **`--dangerously-skip-permissions` stays out.** It would approve every command, not only the six of the list, writes included, for a run that is meant to read. Claude Code's own classifier refuses to launch a command that carries it anyway (README, *Known traps*).
 - **`--output-format stream-json` is what makes the failure legible**, and it is why this block ends in `jq` rather than `cat`. A refused read, an artefact written instead of an answer, a subagent the run never waits for — all three used to arrive as *plausible text or silence* and had to be told apart by reading stderr. As events they are one query each: an empty `result.response` is a failed run, a `step_update` in `state:"ERROR"` carries the tool **and its target** — `CommandLine` for `run_command`, `Path` for `read_file` — a `run_command` in `state:"DONE"` carries its output in `tool_info.output`, and `init.conversation_id` is what lets an interrupted review resume instead of paying for it twice. The critique itself lives in `.result.response`.
 - **`CRITIC` and `FRAMING` are one unit.** The block above carries the plan-critic pair. For a document that is not about this code, both lines change together:
@@ -275,8 +315,8 @@ Constraints:
   Swapping the critic and leaving the plan-critic framing in place is the one mistake that costs the whole run: *«verify every claim it makes by reading this repository yourself»* is an order to find code behind a text that has none, and the model obeys it by inventing references. The reverse — doc framing with `plan-critic.md` — quietly drops the verification the plan needed.
 - **The Output Delivery Constraint is load-bearing, and each clause was bought with a failed run.** Without the first, agy answers a review request with a *plan for reviewing* and waits for an approval headless can never give. Without the second, it writes the critique to an artefact file and returns a one-line pointer, or hands the work to a subagent the CLI kills on exit (`terminating 1 background task(s)`) — a promise instead of a review. `plan-reviewer` has neither `write_to_file` nor `invoke_subagent`, so the second clause no longer guards an action. Keep it anyway: it is what asks for the critique verbatim in the response, rather than a summary or a sentence about where the critique would be.
 - **It states facts about the environment, and it does not dictate method.** That line is the one to hold. *This run has no channel to answer you*, *a background task dies when the turn ends* — true, unknowable to agy, and saying so is not preparing its context. The agent's tool list, and the sentences of its body — which commands run, which forms are refused — are of the same kind: they describe the room, not how to work in it. *Use simple commands*, *mark your commands as safe to auto-run*, or *read these files first*, are the other kind: they tell the reviewer how to work, which is its business and this plugin's central rule.
-- **The model is pinned to `gemini-4-argon-high`.** It is the newest Gemini tier `agy models` lists (seen on agy 1.4.0), after the Pro tier left the list in 1.3.4 and `gemini-3.8-flash-high` stood in for it. It is a different vendor's model from yours, which is the point. Override with `PLAN_REVIEW_MODEL` — `gemini-3.8-flash-high`, the previous pin, is the fallback — and see the failure mode below for when the pin goes stale. `agy models` lists what is available — that list also carries Claude models and `gpt-oss-120b`, an open-weights model, but none of OpenAI's frontier ones. For those there is `/adversarial-plan-reviewer:codex`.
-- **`--print-timeout` carries the tier, and the tier is ours.** agy's own default is `0s` — it waits for the turn to complete, with no limit at all — so the ceiling is a choice this skill makes, not a constraint it inherits. `PLAN_REVIEW_TIMEOUT` overrides it, in **seconds as a bare integer**: the `s` is appended by the command, so `PLAN_REVIEW_TIMEOUT=900s` builds `900ss` and agy rejects it. Being agy's own flag it needs no `timeout`/`gtimeout` wrapper.
+- **Two pins: the review on `gemini-4-neon-xhigh`, the probe on `gemini-4-hydrogen-low`.** Neon is the review's pin by judgement, not by measurement: a few runs cannot rank two models, and the plugin exists for depth of critique, in a run the user already waits for in plan mode, under a ceiling that is not a budget. agy's own catalog lists Neon first among its planners, ahead of Argon, and of the two only Neon has an `xhigh` level. On plans of 10 to 20 KB a review took 532 to 720 seconds — about 1.7 times `gemini-4-argon-high` on the same document — and drew on the shared `Gemini Models` quota, about 5% of its five-hour limit each. Override with `PLAN_REVIEW_MODEL`: `gemini-4-neon-high` for a user short on time, whose duration and quota are not measured, or `gemini-4-argon-high`, the previous pin, as the fallback — it draws on a quota row of its own. The probe's pin is Hydrogen, agy's executor class: `gemini-4-hydrogen-low` listed the root with an `ls` on 5 runs out of 5 on this repo, in 4 to 6 seconds. Override it with `PLAN_REVIEW_PROBE_MODEL`. Section 1 checks both against `agy models`. They are a different vendor's models from yours, which is the point. `agy models` also carries Claude models and `gpt-oss-120b`, an open-weights model, but none of OpenAI's frontier ones. For those there is `/adversarial-plan-reviewer:codex`.
+- **`--print-timeout` carries the tier, and the tier is ours.** agy's own default is `0s` — it waits for the turn to complete, with no limit at all — so the ceiling is a choice this skill makes, not a constraint it inherits. `PLAN_REVIEW_TIMEOUT` overrides it, in **seconds as a bare integer**: the `s` is appended by the command, so `PLAN_REVIEW_TIMEOUT=1800s` builds `1800ss` and agy rejects it. Being agy's own flag it needs no `timeout`/`gtimeout` wrapper.
 - **Inlining is safe on size.** A 17 KB plan against a 1 MB `ARG_MAX` is under 2%. A document would have to reach hundreds of KB to matter; past that size the document is the problem.
 - **stderr stays captured even though the events carry the diagnosis.** It is where the one-line summary of a refusal appears, and where a mistyped flag shows up before any event is emitted.
 - Requires cached credentials from a prior interactive `agy` login on this machine, and the `plan-reviewer` agent of section 1. Nothing else: no folder to trust, no command to pre-grant — the command list travels with each run, in `--settings`.
@@ -342,7 +382,13 @@ The reviewer tried a command outside the list, or a form the list does not cover
 
 Never report that sentence as if it were the review, and do not go read the file it names. The fix is the Output Delivery Constraint. If it is in the prompt and this still happens, say so and stop.
 
-**Unknown model** — stderr names the rejected model. The pin goes stale: agy 1.3.4 dropped `gemini-3.1-pro-high` from `agy models`, and the same release rejects `--effort` with a model name that carries the level (`invalid model selection (--model "…-high" --effort "high")`). Run `agy models`, then either `PLAN_REVIEW_MODEL=<one of them>` or drop the flag. As with `--max-turns` on the Claude side: abandon the flag, not the review.
+**Unknown model** — the model check of section 1 catches a stale pin before any run. If a run gets there anyway — the list changed during the conversation, say — agy exits 1 in about two seconds, measured on 1.5.14, with this on stderr, followed by the display names of the models it knows:
+
+```
+error: invalid model selection (--model "<model>" --effort ""): model <model> is not recognized as a known model or custom model in settings
+```
+
+Write the *failed* stamp quoting that line, and stop. The remedy is the user's: update agy, or set `PLAN_REVIEW_MODEL` — `PLAN_REVIEW_PROBE_MODEL` for the probe — to a model `agy models` lists. Never drop `--model`: the run would use whatever model `settings.json` names, while the stamp names the pin.
 
 **Not logged in** — stderr starts with `Authentication required. Please visit the URL to log in:` followed by a long OAuth URL. Do not print that URL and do not try to complete the flow. Tell the user to log in once, interactively, in another terminal:
 
@@ -352,9 +398,16 @@ agy
 
 then complete the browser login and quit. Say the review will work from then on, and wait.
 
+**Quota** — a review or a probe that stops on a quota or limit error. The exact signature is not measured; agy 1.5.10's changelog says that weekly quota errors stop the turn right away. Write the *failed* stamp quoting the error. Then run `agy -p "/quota" </dev/null` yourself: it answers in about three seconds without starting a turn, so it is a diagnosis, not a retry — the same reasoning as `--log-file` below. Its rows are per pool: `Gemini Models`, which Neon draws on, measured, and rows of their own for some families, such as `Gemini 4 Argon`. Say which one is out, then offer the remedy — never set it — by model name: the user sets it in the environment Claude Code starts from, where the block's variables do not exist.
+
+- **The review's pool is out → the review moves** to a model with quota left: `PLAN_REVIEW_MODEL=gemini-4-argon-high`, on its own row. If that row is out too, or the review already runs on Argon, offer `/adversarial-plan-reviewer:codex` or `/adversarial-plan-reviewer:claude` in one line, and wait.
+- **The probe's pool is out → the probe follows the review:** `PLAN_REVIEW_PROBE_MODEL` set to the model the review runs on, by name. That pool is one the review needs anyway, and the probe becomes the full dress rehearsal.
+
+Both out: both rules, which put both overrides on `gemini-4-argon-high`. Do not offer `gemini-4-neon-high`: it most likely shares Neon's pool — inferred from the per-family rows, not measured. Which pool Hydrogen draws on is not measured either: ten probes moved no row.
+
 **Prompt swallowed by a flag** — stderr contains `took "--…" as its prompt`. That is a bug in the command line, not in the environment: move the flag before `-p` and re-run once.
 
-**Hit the ceiling** — agy stops at `--print-timeout`, and in the event stream the signature is precise: `init` and `step_update` events arrive but **no `result` event ever does**. That is what distinguishes it from a refusal, which does produce a `result`. Section 0 of the response protocol already counts a run killed by the timeout as a failed one. **Hitting the ceiling means the tier was misjudged, not that the reviewer failed**, so report it as that: name the tier it ran under, name the next one with its number (`300s` → `900s` → `1800s`), and offer it. **Do not re-run on your own** — the ban is the response protocol's, and a second run costs money and answers a question the user did not ask. The way not to arrive here is in section 3: err high on the first tier.
+**Hit the ceiling** — agy stops at `--print-timeout`, and in the event stream the signature is precise: `init` and `step_update` events arrive but **no `result` event ever does**. That is what distinguishes it from a refusal, which does produce a `result`. Section 0 of the response protocol already counts a run killed by the timeout as a failed one. **Hitting the ceiling means the tier was misjudged, not that the reviewer failed**, so report it as that: name the tier it ran under, name the next one with its number (`600s` → `1800s` → `3600s`), and offer it. **Do not re-run on your own** — the ban is the response protocol's, and a second run costs money and answers a question the user did not ask. The way not to arrive here is in section 3: err high on the first tier.
 
 **An empty `response` with exit 0** — treat as a failed run, never as "no critique found". Work through the events before saying anything: a refused step names its target, a missing `result` event means the ceiling, and neither present means read stderr. Only if all three come up empty is `--log-file "${TMPDIR:-/tmp}/agy-review.log"` worth one re-run, grepping it for `permission|grant|project`. Adding the flag for diagnosis is not a retry around the problem — report what it says, then stop.
 

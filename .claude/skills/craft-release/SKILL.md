@@ -114,8 +114,10 @@ changes, with the step under Migration:
   preflight compares the installed agent with the shipped one byte for byte and
   refuses a stale copy, so every Antigravity user must copy the agent again. The
   preflight hands them the `cp` command with the path filled in; say that.
-- A new requirement, or a pinned model changed — `gemini-4-argon-high`,
-  `gpt-6.1-sol` — so the review fails until the user has access to it.
+- A new requirement, or a pinned review model changed — `gemini-4-neon-xhigh`,
+  `gpt-6.1-sol` — so the review fails until the user has access to it. The
+  Antigravity probe's pin does not count: a probe pin that is not listed falls
+  back to the review pin, so the review still runs.
 
 Always write the notes in English, whatever language the conversation is in.
 They are published on GitHub, where the audience is not the maintainer. This

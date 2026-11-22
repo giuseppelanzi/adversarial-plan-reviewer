@@ -59,6 +59,8 @@ Codex has no wall-clock flag and no turn cap of its own, so an external `timeout
 
 The probe is a **dress rehearsal of the review**. Identical: every flag — the sandbox, the approval policy, the model and its effort, the configuration isolation, the `--disable` set, the event transport, the final-message file. Lowered: the prompt, the ceiling (`120`), and the temporary directory, which is the probe's own — every run gets a fresh one — so that no run can read another's leftovers. Never soften the first group to make the probe pass — a rehearsal under a friendlier command line predicts nothing about the performance. If one flag changes, it changes in both blocks.
 
+**The model and its effort stay the review's, on purpose.** The Antigravity probe runs on a model of its own, because there `agy models` checks the review's pin first. Codex has no command that lists models, so here the probe is the only check of the pin, and the pin is model and effort as one setting. A probe at a lower effort would stop checking the exact pair the review runs, to save a few seconds of a ten-second run. Whether the API would reject a pair it does not support is not measured.
+
 It asks for **the root listing on purpose**: it is the reviewer's first act of exploration, done with the tools the review will use. About ten seconds settle what a review would otherwise discover at the end of a quarter of an hour: credentials, the model pin, the flags this CLI version accepts, the sandbox starting, and the reviewer reaching this directory.
 
 ```bash

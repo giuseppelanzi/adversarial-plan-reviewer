@@ -105,7 +105,7 @@ The close below lives in the conversation and scrolls away. The plan document do
 **In phase A** the block is provisional, so that the plan never looks unreviewed while the user chooses. It is the one change to the document in that phase:
 
 ```
-> **Review**: Antigravity (`gemini-4-argon-high`) — VERDICT: FAIL — 11 files read
+> **Review**: Antigravity (`gemini-4-neon-xhigh`) — VERDICT: FAIL — 11 files read
 > 8 points proposed (4 BLOCKING, 3 SHOULD-FIX, 1 NOTE) — awaiting the user's choice.
 ```
 
@@ -114,7 +114,7 @@ The same form for the other reviewers, with `Claude Code (<model>)` or ``Codex (
 **In phase B** it becomes final — one line per line of section 5's close, the same three facts, not a second summary invented for the occasion:
 
 ```
-> **Review**: Antigravity (`gemini-4-argon-high`) — VERDICT: FAIL — 11 files read
+> **Review**: Antigravity (`gemini-4-neon-xhigh`) — VERDICT: FAIL — 11 files read
 > 7 points taken (3 BLOCKING, 3 SHOULD-FIX, 1 NOTE), 1 set aside (1 BLOCKING)
 > Plan rewritten on the points taken; another pass recommended (BLOCKING taken).
 ```
@@ -142,7 +142,7 @@ The third line, one of four:
 
 Quote the reviewer's own error in that first line, trimmed. Do not substitute a cause of your own: naming the wrong one is how a diagnosis nobody re-checks ends up stamped on every plan.
 
-**When the review never started** because the preflight stopped before any run — `agy` not found, or the reviewer agent missing or outdated; `codex` not found, or no `timeout` / `gtimeout` for it — there is no reviewer error to quote, so the block says what stopped it:
+**When the review never started** because the preflight stopped before any run — `agy` not found, the reviewer agent missing or outdated, or the review model not in `agy models`; `codex` not found, or no `timeout` / `gtimeout` for it — there is no reviewer error to quote, so the block says what stopped it:
 
 ```
 > **Review**: Antigravity not run — `agy` not found.
@@ -153,6 +153,13 @@ Quote the reviewer's own error in that first line, trimmed. Do not substitute a 
 > **Review**: Antigravity not run — reviewer agent missing or outdated (~/.gemini/config/agents/plan-reviewer.md).
 > Plan NOT verified.
 ```
+
+```
+> **Review**: Antigravity not run — `<model>` not in `agy models`.
+> Plan NOT verified.
+```
+
+`<model>` is the model the review was asked to run on — the pin, or the `PLAN_REVIEW_MODEL` override — written in its place.
 
 ```
 > **Review**: Codex not run — `codex` not found.

@@ -43,7 +43,7 @@ Then set up at least one reviewer. You only need the ones you plan to use.
 
 | Reviewer | Command line tool | One-time setup |
 |---|---|---|
-| Antigravity | `agy` 1.5 or later | Log in once by running `agy` in a terminal. Install the read-only reviewer agent: the first review gives you the command. |
+| Antigravity | `agy` 1.5.14 or later | Log in once by running `agy` in a terminal. Install the read-only reviewer agent: the first review gives you the command. |
 | Codex | `codex`, plus `timeout` or `gtimeout` | `codex login` |
 | Claude | `claude`, already there | none |
 
@@ -96,7 +96,7 @@ Only a plan gets the `> **Review**:` line. When you review one of your own files
 A review that nobody can see might as well not have happened. So the outcome is written into the plan itself, right under its title:
 
 ```
-> **Review**: Antigravity (`gemini-4-argon-high`) — VERDICT: FAIL — 11 files read
+> **Review**: Antigravity (`gemini-4-neon-xhigh`) — VERDICT: FAIL — 11 files read
 > 7 points taken (3 BLOCKING, 3 SHOULD-FIX, 1 NOTE), 1 set aside (1 BLOCKING)
 > Plan rewritten on the points taken; another pass recommended (BLOCKING taken).
 ```
@@ -106,8 +106,8 @@ The line takes one of four forms: the review **ran**, it **failed** (`Plan NOT v
 ## Customization
 
 - **Critic prompts:** `reviewers/plan-critic.md` and `reviewers/doc-critic.md`. Every reviewer uses the same two, so you can compare reviewers on the same document.
-- **Models:** Antigravity uses `gemini-4-argon-high` and Codex uses `gpt-6.1-sol` at high effort. Override them with `PLAN_REVIEW_MODEL` and `PLAN_REVIEW_CODEX_MODEL`.
-- **Time limits:** each review gets 5, 15 or 30 minutes, chosen from the size of the document and of the repository. Override with `PLAN_REVIEW_TIMEOUT`, in seconds, and on the Claude side `PLAN_REVIEW_MAX_TURNS`.
+- **Models:** Antigravity reviews with `gemini-4-neon-xhigh` and runs its first check on the faster `gemini-4-hydrogen-low`. Codex uses `gpt-6.1-sol` at high effort. Override them with `PLAN_REVIEW_MODEL` (for example `gemini-4-neon-high` if you are short on time), `PLAN_REVIEW_PROBE_MODEL` and `PLAN_REVIEW_CODEX_MODEL`.
+- **Time limits:** an Antigravity review gets 10, 30 or 60 minutes, a Codex or Claude review 5, 15 or 30, chosen from the size of the document and of the repository. Override with `PLAN_REVIEW_TIMEOUT`, in seconds, and on the Claude side `PLAN_REVIEW_MAX_TURNS`.
 
 Set the variables in the environment you start Claude Code from.
 
