@@ -9,7 +9,7 @@ argument-hint: "[previous-version] [new-version]"
 
 ## How releases work here
 
-A release is the commit on `origin/main` where `.claude-plugin/plugin.json`
+A release is the commit on `origin/main` where `plugin/.claude-plugin/plugin.json`
 first carries the new `version` — normally the merge of the `vX.Y.Z-<slug>`
 pull request. Work merged before the bump ships with it; work merged after it
 waits for the next bump.
@@ -46,8 +46,11 @@ and otherwise the first commit on main's first-parent line that brings the
 version in — the **first** line of:
 
 ```
-git log origin/main --first-parent --reverse --format='%H %s' -S'"version": "X.Y.Z"' -- .claude-plugin/plugin.json
+git log origin/main --first-parent --reverse --format='%H %s' -S'"version": "X.Y.Z"' -- plugin/.claude-plugin/plugin.json .claude-plugin/plugin.json
 ```
+
+Both paths, because up to 1.3.0 the manifest sat at the repository root; 1.3.1
+moved the plugin into `plugin/`.
 
 A later line is where the version was replaced by the next one; ignore it. If
 neither command returns a commit, stop and say so: the version was never on
@@ -59,13 +62,13 @@ Then find the versions:
 - **Two versions given**: resolve both.
 - **One version given**: it is the new one; derive the previous one as below.
 - **None given**: the new version is the one on main —
-  `git show origin/main:.claude-plugin/plugin.json` — and you resolve it.
+  `git show origin/main:plugin/.claude-plugin/plugin.json` — and you resolve it.
 
 The previous version, when not given, is the one the new version replaced. Read
 it from the first parent of the new version's commit, then resolve it:
 
 ```
-git show <new-commit>^:.claude-plugin/plugin.json
+git show <new-commit>^:plugin/.claude-plugin/plugin.json 2>/dev/null || git show <new-commit>^:.claude-plugin/plugin.json
 ```
 
 The range is `<previous-commit>..<new-commit>`, and the version being released
@@ -80,7 +83,7 @@ Also run `git log <new-commit>..origin/main --oneline`. If it lists anything,
 tell the user: those commits are on main but not in this release — they ship
 with the next bump.
 
-Never take a version from `.claude-plugin/plugin.json` in the working tree. The
+Never take a version from `plugin/.claude-plugin/plugin.json` in the working tree. The
 user bumps it when they decide, often well before the commit, so the working
 tree may already carry a version that is not on main. Versions come from
 commits only, through `git show <commit>:<path>`.
@@ -109,11 +112,15 @@ entries, Migration included.
 Two things a user must do by hand after updating, and they go under Breaking
 changes, with the step under Migration:
 
-- `reviewers/agy-plan-reviewer.md` changed in the range — check
-  `git diff <range> --stat -- reviewers/agy-plan-reviewer.md`. The Antigravity
-  preflight compares the installed agent with the shipped one byte for byte and
-  refuses a stale copy, so every Antigravity user must copy the agent again. The
-  preflight hands them the `cp` command with the path filled in; say that.
+- The Antigravity agent changed in the range — check
+  `git diff -M <range> -- plugin/reviewers/agy-plan-reviewer.md reviewers/agy-plan-reviewer.md`.
+  Line 1 of the shipped file is a title that is never installed; the agent is
+  the file from line 2 on (before 1.3.1, under `reviewers/`, the whole file).
+  The Antigravity preflight compares the installed agent with that part, byte
+  for byte, and refuses a stale copy. So a diff that adds or changes line 1
+  alone, the move to `plugin/` included, asks nothing of users; any change
+  below it means every Antigravity user must install the agent again. The
+  preflight hands them the install command with the path filled in; say that.
 - A new requirement, or a pinned review model changed — `gemini-4-neon-xhigh`,
   `gpt-6.1-sol` — so the review fails until the user has access to it. The
   Antigravity probe's pin does not count: a probe pin that is not listed falls

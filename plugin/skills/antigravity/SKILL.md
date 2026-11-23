@@ -91,8 +91,9 @@ The reviewer runs as the agy agent `plan-reviewer`, whose tools are `read_file` 
 ```bash
 AGENT="$HOME/.gemini/config/agents/plan-reviewer.md"
 SHIPPED="${CLAUDE_PLUGIN_ROOT}/reviewers/agy-plan-reviewer.md"
+# Line 1 of the shipped file is a title that is never installed: the agent is the file from line 2 on.
 if [ ! -f "$AGENT" ]; then echo "agent: MISSING"
-elif ! cmp -s "$AGENT" "$SHIPPED"; then echo "agent: OUTDATED"
+elif ! tail -n +2 "$SHIPPED" | cmp -s - "$AGENT"; then echo "agent: OUTDATED"
 else echo "agent: ok"; fi
 ```
 
@@ -101,7 +102,7 @@ Always `$HOME`, never `~` inside quotes, where the shell does not expand it.
 **Missing or outdated → stop.** Do not install it yourself: agy's configuration is the user's. Hand them the command, already resolved:
 
 ```bash
-mkdir -p "$HOME/.gemini/config/agents" && cp "${CLAUDE_PLUGIN_ROOT}/reviewers/agy-plan-reviewer.md" "$HOME/.gemini/config/agents/plan-reviewer.md"
+mkdir -p "$HOME/.gemini/config/agents" && tail -n +2 "${CLAUDE_PLUGIN_ROOT}/reviewers/agy-plan-reviewer.md" > "$HOME/.gemini/config/agents/plan-reviewer.md"
 ```
 
 and stamp the plan — no agy run happened, so there is no agy error to quote:
@@ -358,7 +359,7 @@ Follow section 0 of the response protocol: report the error, give the remedy, **
 
 **Judge the run by its `VERDICT`, not by its exit code or its `status`.** A run that ends empty with exit 0 and `status: SUCCESS` has failed; a resumed run has closed with `status: ERROR` and a whole critique in its response. A response with a `VERDICT:` line is a review; anything else is not.
 
-**The reviewer agent is missing or outdated.** The preflight of section 1 catches it before any run. If a run gets there anyway, agy 1.3.4 exits 1 on an unknown `--agent` and lists the agents it has. Hand the user the `cp` command of section 1, stamp the plan in that section's form, and stop.
+**The reviewer agent is missing or outdated.** The preflight of section 1 catches it before any run. If a run gets there anyway, agy 1.3.4 exits 1 on an unknown `--agent` and lists the agents it has. Hand the user the install command of section 1, stamp the plan in that section's form, and stop.
 
 **A read was refused.** The signature is a `step_update` in `state: "ERROR"` whose message begins `permission check failed for read_file`, and `result.denied_actions` listing `read_file`; the filter above prints the target. If the run carried on and a critique came back, it is a review: report the refused path with it. If the run ended empty, it failed. Report in the user's language:
 
