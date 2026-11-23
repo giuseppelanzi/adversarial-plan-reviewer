@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/icon.png" alt="" width="112">
+  <img src="plugin/assets/icon.png" alt="" width="112">
 </p>
 
 # Adversarial Plan Reviewer
@@ -49,7 +49,7 @@ Then set up at least one reviewer. You only need the ones you plan to use.
 
 All three also need `jq`. On macOS, `brew install jq coreutils` installs `jq` and `gtimeout`.
 
-About the Antigravity agent: it lives in agy's own configuration, which a Claude Code plugin cannot write to. So the first Antigravity review stops and gives you a `cp` command, with the path already filled in. Run it once per machine. If an update changes the agent, the plugin notices and asks you to run it again.
+About the Antigravity agent: it lives in agy's own configuration, which a Claude Code plugin cannot write to. So the first Antigravity review stops and gives you the command, with the path already filled in. Run it once per machine. If an update changes the agent, the plugin notices and asks you to run it again.
 
 ## What changes once it is installed
 
@@ -105,7 +105,7 @@ The line takes one of four forms: the review **ran**, it **failed** (`Plan NOT v
 
 ## Customization
 
-- **Critic prompts:** `reviewers/plan-critic.md` and `reviewers/doc-critic.md`. Every reviewer uses the same two, so you can compare reviewers on the same document.
+- **Critic prompts:** `plugin/reviewers/plan-critic.md` and `plugin/reviewers/doc-critic.md`. Every reviewer uses the same two, so you can compare reviewers on the same document.
 - **Models:** Antigravity reviews with `gemini-4-neon-xhigh` and runs its first check on the faster `gemini-4-hydrogen-low`. Codex uses `gpt-6.1-sol` at high effort. Override them with `PLAN_REVIEW_MODEL` (for example `gemini-4-neon-high` if you are short on time), `PLAN_REVIEW_PROBE_MODEL` and `PLAN_REVIEW_CODEX_MODEL`.
 - **Time limits:** an Antigravity review gets 10, 30 or 60 minutes, a Codex or Claude review 5, 15 or 30, chosen from the size of the document and of the repository. Override with `PLAN_REVIEW_TIMEOUT`, in seconds, and on the Claude side `PLAN_REVIEW_MAX_TURNS`.
 

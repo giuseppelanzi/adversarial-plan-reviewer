@@ -1,3 +1,4 @@
+# Antigravity agent — install it without this first line
 ---
 name: plan-reviewer
 description: Read-only reviewer for the adversarial-plan-reviewer plugin. Critiques a document against the repository in its workspace.

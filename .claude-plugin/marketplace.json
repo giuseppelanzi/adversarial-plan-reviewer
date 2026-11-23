@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "adversarial-plan-reviewer",
-      "source": "./",
+      "source": "./plugin",
       "description": "Adversarial review of plans by an external reviewer that reads your repository read-only.",
       "category": "code-review"
     }
